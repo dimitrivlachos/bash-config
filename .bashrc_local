@@ -136,7 +136,7 @@ function tem() {
     set_prompt
 }
 
-# Help function
+# Prompt function help
 function ph() {
     echo "Prompt customization commands:"
     echo "  tgit      - Toggle the display of the current git branch in the prompt."
@@ -144,6 +144,16 @@ function ph() {
     echo "  tdir      - Toggle the display of the directory between short (\W) and long (\w) formats."
     echo "  tem       - Toggle the display of emojis in the prompt."
     echo "  ph        - Show this help message."
+}
+
+# Git function help
+function gh() {
+    echo "Git commands:"
+    echo "  gst       - Show the status of the git repository."
+    echo "  gco       - Checkout a branch."
+    echo "  gcm       - Commit changes with a message."
+    echo "  gpl       - Pull changes from the remote repository."
+    echo "  gps       - Push changes to the remote repository."
 }
 
 # Aliases to toggle elements and show help
