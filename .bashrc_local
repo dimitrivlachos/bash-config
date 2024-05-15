@@ -143,3 +143,10 @@ complete -F _custom_prompt_completion prompt_help
 
 # Set prompt initially
 set_prompt
+
+# Common git commands
+alias gst='git status'
+alias gco='git checkout'
+alias gcm='git commit -m'
+alias gpl='git pull'
+alias gps='git push'
