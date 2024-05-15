@@ -19,8 +19,15 @@ RESET_COLOR="\[\033[0m\]"    # Reset color to default
 # Default toggle values
 export SHOW_GIT_BRANCH=0
 export SHOW_VENV=1
-export SHOW_EMOJIS=1
+export SHOW_EMOJIS=0
 export DIR_LENGTH="short"
+
+# Check if terminal supports emojis
+function check_emoji_support() {
+    if [[ "$TERM_PROGRAM" == "vscode" ]]; then
+        export SHOW_EMOJIS=1
+    fi
+}
 
 # Parse git branch
 function parse_git_branch() {
@@ -118,7 +125,7 @@ function tdir() {
 }
 
 # Toggle emoji display
-function temoji() {
+function tem() {
     if [ "$SHOW_EMOJIS" -eq 0 ]; then
         export SHOW_EMOJIS=1
         echo "Emoji display enabled."
@@ -130,7 +137,7 @@ function temoji() {
 }
 
 # Help function
-function prompt_help() {
+function ph() {
     echo "Prompt customization commands:"
     echo "  tgit      - Toggle the display of the current git branch in the prompt."
     echo "  tvenv     - Toggle the display of the current virtual environment in the prompt."
@@ -143,8 +150,8 @@ function prompt_help() {
 alias tgit='tgit'
 alias tvenv='tvenv'
 alias tdir='tdir'
-alias tem='temoji'
-alias ph='prompt_help'
+alias tem='tem'
+alias ph='ph'
 
 # Bash completion for custom aliases
 function _custom_prompt_completion() {
@@ -164,6 +171,9 @@ complete -F _custom_prompt_completion tvenv
 complete -F _custom_prompt_completion tdir
 complete -F _custom_prompt_completion tem
 complete -F _custom_prompt_completion ph
+
+# Check if terminal supports emojis
+check_emoji_support
 
 # Set prompt initially
 set_prompt
