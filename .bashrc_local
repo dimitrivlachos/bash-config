@@ -18,6 +18,7 @@ RESET_COLOR="\[\033[0m\]"    # Reset color to default
 
 # Default toggle values
 export SHOW_GIT_BRANCH=0
+export SHOW_VENV=1
 export DIR_LENGTH="short"
 
 # Parse git branch
@@ -33,10 +34,12 @@ function parse_git_branch() {
 
 # Parse virtual environment
 function parse_virtualenv() {
-    local env_name
-    env_name="$(mamba env list | awk '/^ *\*/ {print $2}' | awk -F'/' '{n=split($0,a,"/"); print a[n-1]"/"a[n]}')"
-    if [ -n "$env_name" ]; then
-        echo -e "(${VEN_COLOR}${env_name}${RESET_COLOR})"
+    if [ "$SHOW_VENV" -eq 1 ]; then
+        local env_name
+        env_name="$(mamba env list | awk '/^ *\*/ {print $2}' | awk -F'/' '{n=split($0,a,"/"); print a[n-1]"/"a[n]}')"
+        if [ -n "$env_name" ]; then
+            echo -e "(${VEN_COLOR}${env_name}${RESET_COLOR})"
+        fi
     fi
 }
 
@@ -81,6 +84,18 @@ function toggle_git_branch() {
     set_prompt
 }
 
+# Toggle virtual environment display
+function toggle_venv() {
+    if [ "$SHOW_VENV" -eq 0 ]; then
+        export SHOW_VENV=1
+        echo "Virtual environment display enabled."
+    else
+        export SHOW_VENV=0
+        echo "Virtual environment display disabled."
+    fi
+    set_prompt
+}
+
 # Toggle directory length
 function toggle_dir_length() {
     if [ "$DIR_LENGTH" == "short" ]; then
@@ -97,12 +112,14 @@ function toggle_dir_length() {
 function prompt_help() {
     echo "Prompt customization commands:"
     echo "  toggle_git      - Toggle the display of the current git branch in the prompt."
+    echo "  toggle_venv     - Toggle the display of the current virtual environment in the prompt."
     echo "  toggle_dir      - Toggle the display of the directory between short (\W) and long (\w) formats."
     echo "  prompt_help     - Show this help message."
 }
 
 # Aliases to toggle elements and show help
 alias toggle_git='toggle_git_branch'
+alias toggle_venv='toggle_venv'
 alias toggle_dir='toggle_dir_length'
 alias prompt_help='prompt_help'
 
@@ -111,7 +128,7 @@ function _custom_prompt_completion() {
     local cur prev opts
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
-    opts="toggle_git toggle_dir prompt_help"
+    opts="toggle_git toggle_venv toggle_dir prompt_help"
 
     if [[ ${cur} == * ]]; then
         COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
@@ -120,11 +137,9 @@ function _custom_prompt_completion() {
 }
 
 complete -F _custom_prompt_completion toggle_git
+complete -F _custom_prompt_completion toggle_venv
 complete -F _custom_prompt_completion toggle_dir
 complete -F _custom_prompt_completion prompt_help
 
 # Set prompt initially
 set_prompt
-
-# Display help message on startup
-# prompt_help
