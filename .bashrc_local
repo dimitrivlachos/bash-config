@@ -19,6 +19,7 @@ RESET_COLOR="\[\033[0m\]"    # Reset color to default
 # Default toggle values
 export SHOW_GIT_BRANCH=0
 export SHOW_VENV=1
+export SHOW_EMOJIS=1
 export DIR_LENGTH="short"
 
 # Parse git branch
@@ -27,7 +28,11 @@ function parse_git_branch() {
         local branch_name
         branch_name="$(git symbolic-ref --short HEAD 2>/dev/null)"
         if [ -n "$branch_name" ]; then
-            echo " ($branch_name)"
+            if [ "$SHOW_EMOJIS" -eq 1 ]; then
+                echo " 🌿($branch_name)"
+            else
+                echo " ($branch_name)"
+            fi
         fi
     fi
 }
@@ -38,7 +43,11 @@ function parse_virtualenv() {
         local env_name
         env_name="$(mamba env list | awk '/^ *\*/ {print $2}' | awk -F'/' '{n=split($0,a,"/"); print a[n-1]"/"a[n]}')"
         if [ -n "$env_name" ]; then
-            echo -e "(${VEN_COLOR}${env_name}${RESET_COLOR})"
+            if [ "$SHOW_EMOJIS" -eq 1 ]; then
+                echo -e "(${VEN_COLOR}${env_name}${RESET_COLOR} 🐍)"
+            else
+                echo -e "(${VEN_COLOR}${env_name}${RESET_COLOR})"
+            fi
         fi
     fi
 }
@@ -73,7 +82,7 @@ function set_prompt() {
 }
 
 # Toggle git branch display
-function toggle_git_branch() {
+function tgit() {
     if [ "$SHOW_GIT_BRANCH" -eq 0 ]; then
         export SHOW_GIT_BRANCH=1
         echo "Git branch display enabled."
@@ -85,7 +94,7 @@ function toggle_git_branch() {
 }
 
 # Toggle virtual environment display
-function toggle_venv() {
+function tvenv() {
     if [ "$SHOW_VENV" -eq 0 ]; then
         export SHOW_VENV=1
         echo "Virtual environment display enabled."
@@ -97,7 +106,7 @@ function toggle_venv() {
 }
 
 # Toggle directory length
-function toggle_dir_length() {
+function tdir() {
     if [ "$DIR_LENGTH" == "short" ]; then
         export DIR_LENGTH="long"
         echo "Directory display set to long."
@@ -108,27 +117,41 @@ function toggle_dir_length() {
     set_prompt
 }
 
+# Toggle emoji display
+function temoji() {
+    if [ "$SHOW_EMOJIS" -eq 0 ]; then
+        export SHOW_EMOJIS=1
+        echo "Emoji display enabled."
+    else
+        export SHOW_EMOJIS=0
+        echo "Emoji display disabled."
+    fi
+    set_prompt
+}
+
 # Help function
 function prompt_help() {
     echo "Prompt customization commands:"
-    echo "  toggle_git      - Toggle the display of the current git branch in the prompt."
-    echo "  toggle_venv     - Toggle the display of the current virtual environment in the prompt."
-    echo "  toggle_dir      - Toggle the display of the directory between short (\W) and long (\w) formats."
-    echo "  prompt_help     - Show this help message."
+    echo "  tgit      - Toggle the display of the current git branch in the prompt."
+    echo "  tvenv     - Toggle the display of the current virtual environment in the prompt."
+    echo "  tdir      - Toggle the display of the directory between short (\W) and long (\w) formats."
+    echo "  tem       - Toggle the display of emojis in the prompt."
+    echo "  ph        - Show this help message."
 }
 
 # Aliases to toggle elements and show help
-alias toggle_git='toggle_git_branch'
-alias toggle_venv='toggle_venv'
-alias toggle_dir='toggle_dir_length'
-alias prompt_help='prompt_help'
+alias tgit='tgit'
+alias tvenv='tvenv'
+alias tdir='tdir'
+alias tem='temoji'
+alias ph='prompt_help'
 
 # Bash completion for custom aliases
 function _custom_prompt_completion() {
     local cur prev opts
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
-    opts="toggle_git toggle_venv toggle_dir prompt_help"
+    opts="tgit tvenv tdir tem ph"
 
     if [[ ${cur} == * ]]; then
         COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
@@ -136,10 +159,11 @@ function _custom_prompt_completion() {
     fi
 }
 
-complete -F _custom_prompt_completion toggle_git
-complete -F _custom_prompt_completion toggle_venv
-complete -F _custom_prompt_completion toggle_dir
-complete -F _custom_prompt_completion prompt_help
+complete -F _custom_prompt_completion tgit
+complete -F _custom_prompt_completion tvenv
+complete -F _custom_prompt_completion tdir
+complete -F _custom_prompt_completion tem
+complete -F _custom_prompt_completion ph
 
 # Set prompt initially
 set_prompt
