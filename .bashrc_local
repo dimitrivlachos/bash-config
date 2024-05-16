@@ -46,8 +46,10 @@ function parse_git_branch() {
 
 # Parse virtual environment
 function parse_virtualenv() {
+    # Update the local env_name each time this function is called
+    local env_name="$(basename "$CONDA_DEFAULT_ENV")"
+    
     if [ "$SHOW_VENV" -eq 1 ] && [ -n "$CONDA_DEFAULT_ENV" ]; then
-        local env_name="$(basename "$CONDA_DEFAULT_ENV")"  # Gets the last part of the path, which is typically the env name
         if [ "$SHOW_EMOJIS" -eq 1 ]; then
             echo -e "(${VEN_COLOR}${env_name}${RESET_COLOR} 🐍)"
         else
@@ -193,3 +195,6 @@ alias gco='git checkout'
 alias gcm='git commit -m'
 alias gpl='git pull'
 alias gps='git push'
+
+# Update PS1 upon every prompt display
+PROMPT_COMMAND=set_prompt
