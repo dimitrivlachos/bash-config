@@ -6,6 +6,13 @@ alias cdu='cd /dls/science/users/rto52325/'
 module load cuda
 module load cmake
 
+# Start the SSH agent and add keys
+if [ -z "$SSH_AUTH_SOCK" ] ; then
+  eval "$(ssh-agent -s)"
+  ssh-add ~/.ssh/id_github_ssh
+fi
+
+
 # Set conda packages directory
 export CONDA_PKGS_DIRS="/dls/science/users/rto52325/.conda/pkgs"
 
