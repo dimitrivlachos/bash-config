@@ -141,6 +141,7 @@ function ph() {
     echo "  tdir      - Toggle the display of the directory between short (\W) and long (\w) formats."
     echo "  tem       - Toggle the display of emojis in the prompt."
     echo "  ph        - Show this help message."
+    echo "  rp        - Reset the prompt."
 }
 
 # Git function help
@@ -159,6 +160,7 @@ alias tvenv='tvenv'
 alias tdir='tdir'
 alias tem='tem'
 alias ph='ph'
+alias rp='set_prompt'
 
 # Bash completion for custom aliases
 function _custom_prompt_completion() {
