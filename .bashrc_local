@@ -46,15 +46,12 @@ function parse_git_branch() {
 
 # Parse virtual environment
 function parse_virtualenv() {
-    if [ "$SHOW_VENV" -eq 1 ]; then
-        local env_name
-        env_name="$(mamba env list | awk '/^ *\*/ {print $2}' | awk -F'/' '{n=split($0,a,"/"); print a[n-1]"/"a[n]}')"
-        if [ -n "$env_name" ]; then
-            if [ "$SHOW_EMOJIS" -eq 1 ]; then
-                echo -e "(${VEN_COLOR}${env_name}${RESET_COLOR} 🐍)"
-            else
-                echo -e "(${VEN_COLOR}${env_name}${RESET_COLOR})"
-            fi
+    if [ "$SHOW_VENV" -eq 1 ] && [ -n "$CONDA_DEFAULT_ENV" ]; then
+        local env_name="$(basename "$CONDA_DEFAULT_ENV")"  # Gets the last part of the path, which is typically the env name
+        if [ "$SHOW_EMOJIS" -eq 1 ]; then
+            echo -e "(${VEN_COLOR}${env_name}${RESET_COLOR} 🐍)"
+        else
+            echo -e "(${VEN_COLOR}${env_name}${RESET_COLOR})"
         fi
     fi
 }
