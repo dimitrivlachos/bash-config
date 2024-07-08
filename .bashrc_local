@@ -1,6 +1,8 @@
 # Alias definitions
 alias ls='ls --color=auto'
 alias cdu='cd /dls/science/users/rto52325/'
+alias ma='mamba activate '
+alias mae='mamba activate ENV/'
 
 # Load modules
 module load cuda
@@ -67,7 +69,7 @@ function parse_virtualenv() {
 
 # Map hostname to a more readable name
 declare -A HOSTNAME_MAP
-HOSTNAME_MAP["cs04r-sc-serv-132.diamond.ac.uk"]="i03-gpu"
+HOSTNAME_MAP["cs05r-sc-serv-53.diamond.ac.uk"]="i03-gpu"
 HOSTNAME_MAP["cs04r-sc-serv-133.diamond.ac.uk"]="i24-gpu"
 
 # Function to map hostname
