@@ -2,17 +2,25 @@
 alias ls='ls --color=auto'
 alias cdu='cd /dls/science/users/rto52325/'
 alias ma='mamba activate '
-alias ma='mamba activate '
+alias md='mamba deactivate'
 
-# Function to activate ENV
 function mae() {
-    if [ -d "./ENV" ]; then
-        mamba activate ./ENV
-    elif [ -d "../ENV" ]; then
-        mamba activate ../ENV
+    local env_name="${1:-ENV}"  # Use the first argument if provided, otherwise default to 'ENV'
+    local env_path=""
+
+    if [ -d "./$env_name" ]; then
+        echo "Activating environment '$env_name' in the current directory."
+        env_path="$(pwd)/$env_name"
+    elif [ -d "../$env_name" ]; then
+        echo "Activating environment '$env_name' in the parent directory."
+        env_path="$(cd .. && pwd)/$env_name"
     else
-        echo "No ENV directory found in the current or parent directory."
+        echo "No environment named '$env_name' found in the current or parent directory."
+        return 1
     fi
+
+    # Activate the environment
+    mamba activate "$env_path"
 }
 
 # Load modules
