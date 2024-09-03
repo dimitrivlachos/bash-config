@@ -2,10 +2,21 @@
 alias ls='ls --color=auto'
 alias cdu='cd /dls/science/users/rto52325/'
 alias ma='mamba activate '
-alias mae='mamba activate ENV/'
+alias ma='mamba activate '
+
+# Function to activate ENV
+function mae() {
+    if [ -d "./ENV" ]; then
+        mamba activate ./ENV
+    elif [ -d "../ENV" ]; then
+        mamba activate ../ENV
+    else
+        echo "No ENV directory found in the current or parent directory."
+    fi
+}
 
 # Load modules
-module load cuda
+module load cuda/12.3
 module load cmake
 
 # Start the SSH agent and add keys
