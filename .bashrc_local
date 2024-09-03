@@ -216,5 +216,8 @@ alias gcm='git commit -m'
 alias gpl='git pull'
 alias gps='git push'
 
+# Enable Git completion for the gco alias
+__git_complete gco _git_checkout
+
 # Update PS1 upon every prompt display
 PROMPT_COMMAND=set_prompt
