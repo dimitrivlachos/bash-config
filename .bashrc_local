@@ -27,6 +27,9 @@ function mae() {
 module load cuda/12.3
 module load cmake
 
+# Load custom installs
+export PATH="/dls/science/users/rto52325/.tmux_install/tmux_build/bin:$PATH"
+
 # Start the SSH agent and add keys
 if [ -z "$SSH_AUTH_SOCK" ] ; then
   eval "$(ssh-agent -s)"
@@ -89,7 +92,7 @@ function parse_virtualenv() {
 # Map hostname to a more readable name
 declare -A HOSTNAME_MAP
 HOSTNAME_MAP["cs05r-sc-serv-53.diamond.ac.uk"]="i03-gpu"
-HOSTNAME_MAP["cs04r-sc-serv-133.diamond.ac.uk"]="i24-gpu"
+HOSTNAME_MAP["cs05r-sc-serv-54.diamond.ac.uk"]="i24-gpu"
 
 # Function to map hostname
 function map_hostname() {
