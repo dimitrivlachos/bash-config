@@ -24,7 +24,7 @@ function mae() {
 }
 
 # Load modules
-module load cuda/12.3
+module load cuda
 module load cmake
 
 # Load custom installs
@@ -32,8 +32,8 @@ export PATH="/dls/science/users/rto52325/.tmux_install/tmux_build/bin:$PATH"
 
 # Start the SSH agent and add keys
 if [ -z "$SSH_AUTH_SOCK" ] ; then
-  eval "$(ssh-agent -s)"
-  ssh-add ~/.ssh/id_github_ssh
+  eval "$(ssh-agent -s)" 1>&2
+  ssh-add ~/.ssh/id_github_ssh 1>&2
 fi
 
 
