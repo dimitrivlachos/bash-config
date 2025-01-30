@@ -29,6 +29,7 @@ module load cmake
 
 # Load custom installs
 export PATH="/dls/science/users/rto52325/.tmux_install/tmux_build/bin:$PATH"
+export PATH=/home/rto52325/.ninja/ninja:$PATH
 
 # Start the SSH agent and add keys
 if [ -z "$SSH_AUTH_SOCK" ] ; then
@@ -194,6 +195,7 @@ alias tdir='tdir'
 alias tem='tem'
 alias ph='ph'
 alias rp='set_prompt'
+alias maeb='mae && cd build/'
 
 # Bash completion for custom aliases
 function _custom_prompt_completion() {
