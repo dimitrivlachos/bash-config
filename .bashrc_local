@@ -3,6 +3,7 @@ alias ls='ls --color=auto'
 alias cdu='cd /dls/science/users/rto52325/'
 alias ma='mamba activate '
 alias md='mamba deactivate'
+alias ctestinfo='ctest --rerun-failed --output-on-failure'
 
 function mae() {
     local env_name="${1:-ENV}"  # Use the first argument if provided, otherwise default to 'ENV'
@@ -228,6 +229,46 @@ alias gco='git checkout'
 alias gcm='git commit -m'
 alias gpl='git pull'
 alias gps='git push'
+
+check_vscode_links() {
+  local base="/dls/mx-scratch/dimitri/vscode_remote"
+  local problems=0
+
+  declare -A links=(
+    ["~/.vscode-server/data/User/workspaceStorage"]="$base/workspaceStorage"
+    ["~/.vscode-server/extensions"]="$base/extensions"
+    ["~/.cache/Microsoft"]="$base/ms"
+    ["~/.cache/vscode-cpptools"]="/dls/science/users/rto52325/caches/vscode-cpptools"
+  )
+
+  echo "[VSCode Symlink Check]"
+
+  for path in "${!links[@]}"; do
+    local expanded_path
+    expanded_path=$(eval echo "$path")
+    local expected_target="${links[$path]}"
+
+    if [ -L "$expanded_path" ]; then
+      local actual_target
+      actual_target=$(readlink -f "$expanded_path")
+      if [ "$actual_target" = "$expected_target" ]; then
+        echo "✅ $path -> $expected_target"
+      else
+        echo "⚠️  $path is a symlink, but points to $actual_target (expected $expected_target)"
+        problems=1
+      fi
+    else
+      echo "❌ $path is not a symlink (expected -> $expected_target)"
+      problems=1
+    fi
+  done
+
+  if [ "$problems" -eq 0 ]; then
+    echo "✅ All VSCode paths are correctly linked."
+  else
+    echo "❗ One or more VSCode symlinks are missing or incorrect."
+  fi
+}
 
 # Update PS1 upon every prompt display
 PROMPT_COMMAND=set_prompt
