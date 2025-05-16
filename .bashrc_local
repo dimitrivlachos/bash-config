@@ -32,6 +32,11 @@ module load cmake
 export PATH="/dls/science/users/rto52325/.tmux_install/tmux_build/bin:$PATH"
 export PATH=/home/rto52325/.ninja/ninja:$PATH
 
+# Set default CMake generator
+if [ -z "$CMAKE_GENERATOR" ]; then
+    export CMAKE_GENERATOR="Ninja"
+fi
+
 # Start the SSH agent and add keys
 if [ -z "$SSH_AUTH_SOCK" ] ; then
   eval "$(ssh-agent -s)" 1>&2
