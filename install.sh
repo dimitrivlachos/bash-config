@@ -19,14 +19,22 @@ fi
 echo "[INFO] Linking bashrc_core -> $TARGET_LINK"
 ln -sf "$CONFIG_REPO/bashrc_core" "$TARGET_LINK"
 
-# Ensure ~/.bashrc exports the specialisation and sources bashrc_core
-if ! grep -q "source ~/.bashrc_core" "$TARGET_BASHRC"; then
-  echo "[INFO] Adding specialisation and source lines to $TARGET_BASHRC"
-  echo "export BASH_SPECIALISATION=\"$SPECIALISATION\"" >> "$TARGET_BASHRC"
-  echo "source ~/.bashrc_core" >> "$TARGET_BASHRC"
-else
-  echo "[INFO] ~/.bashrc already sources ~/.bashrc_core"
+# Insert a managed block into ~/.bashrc with spacing
+if grep -q "# >>> bash-config initialize >>>" "$TARGET_BASHRC"; then
+  echo "[INFO] Removing existing bash-config block from $TARGET_BASHRC"
+  sed -i '/# >>> bash-config initialize >>>/,/# <<< bash-config initialize <<</d' "$TARGET_BASHRC"
 fi
+
+echo "[INFO] Adding bash-config block to $TARGET_BASHRC"
+{
+  echo ""
+  echo "# >>> bash-config initialize >>>"
+  echo "# !! This block is managed by the bash-config installer !!"
+  echo "export BASH_SPECIALISATION=\"$SPECIALISATION\""
+  echo "source ~/.bashrc_core"
+  echo "# <<< bash-config initialize <<<"
+  echo ""
+} >> "$TARGET_BASHRC"
 
 # Create secrets dir and template if missing
 if [[ ! -f "$SECRETS_FILE" ]]; then
@@ -34,10 +42,10 @@ if [[ ! -f "$SECRETS_FILE" ]]; then
   mkdir -p "$CONFIG_REPO/secrets"
   cat << EOF > "$SECRETS_FILE"
 # Add secrets like:
-# export DIAMOND_API_TOKEN="..."
-# export SSH_KEY_PATH="..."
+# export DIAMOND_USERNAME="your_username"
+# export DIAMOND_GITHUB_KEY="~/.ssh/id_work_key"
 EOF
 fi
 
 echo "[✅] Install complete. Restart your shell or run:"
-echo "     source ~/.bashrc_core $SPECIALISATION"
+echo "     source ~/.bashrc_core"
