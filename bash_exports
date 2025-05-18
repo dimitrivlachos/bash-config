@@ -1,0 +1,7 @@
+export SHOW_GIT_BRANCH=0
+export SHOW_VENV=1
+export SHOW_EMOJIS=0
+export DIR_LENGTH="short"
+
+# Set default CMake generator
+export CMAKE_GENERATOR="${CMAKE_GENERATOR:-Ninja}"

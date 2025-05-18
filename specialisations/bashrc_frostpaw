@@ -1,0 +1,7 @@
+# System update helpers for Arch
+alias update='sudo pacman -Syu && yay -Sua'
+alias cleanup='sudo pacman -Rns $(pacman -Qdtq) 2>/dev/null || echo "No orphan packages."'
+alias full-update='update && cleanup'
+
+# Neofetch
+command -v neofetch &>/dev/null && neofetch

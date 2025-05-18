@@ -1,0 +1,63 @@
+# Colours
+VEN_COLOR="\[\033[0;32m\]"
+DIR_COLOR="\[\033[1;34m\]"
+USER_COLOR="\[\033[1;33m\]"
+HOST_COLOR="\[\033[1;33m\]"
+RESET_COLOR="\[\033[0m\]"
+
+# Emoji support
+[[ "$TERM_PROGRAM" == "vscode" ]] && export SHOW_EMOJIS=1
+
+# Git branch
+parse_git_branch() {
+    [[ "$SHOW_GIT_BRANCH" -eq 1 ]] || return
+    local branch
+    branch="$(git symbolic-ref --short HEAD 2>/dev/null)"
+    [[ -n "$branch" ]] && echo -n "${SHOW_EMOJIS:+ 🌿}(${branch})"
+}
+
+# Virtualenv
+parse_virtualenv() {
+    local env_name=""
+    if [[ -n "$CONDA_DEFAULT_ENV" ]]; then
+        env_name="$(basename "$CONDA_DEFAULT_ENV")"
+    fi
+
+    if [[ "$SHOW_VENV" -eq 1 && -n "$env_name" ]]; then
+        echo -e "(${VEN_COLOR}${env_name}${RESET_COLOR}${SHOW_EMOJIS:+ 🐍})"
+    fi
+}
+
+# Hostname mapping
+# This function passes through the hostname without any changes.
+# Override this function in a specialisation if you want to map hostnames.
+map_hostname() {
+    echo "$1"
+}
+
+# Prompt
+set_prompt() {
+    local venv branch dir
+    venv="$(parse_virtualenv)"
+    branch="$(parse_git_branch)"
+    dir="\W"
+    [[ "$DIR_LENGTH" == "long" ]] && dir="\w"
+    PS1="${venv}[${USER_COLOR}\u${RESET_COLOR}@${HOST_COLOR}$(map_hostname "$(hostname)")${RESET_COLOR}:${DIR_COLOR}${dir}${RESET_COLOR}${branch}]\$ "
+}
+
+# Toggles
+tgit() { export SHOW_GIT_BRANCH=$((1 - SHOW_GIT_BRANCH)); set_prompt; }
+tvenv() { export SHOW_VENV=$((1 - SHOW_VENV)); set_prompt; }
+tdir() { DIR_LENGTH=$([[ "$DIR_LENGTH" == "short" ]] && echo "long" || echo "short"); set_prompt; }
+tem() { export SHOW_EMOJIS=$((1 - SHOW_EMOJIS)); set_prompt; }
+
+# Help
+function ph() {
+    echo "Prompt customization commands:"
+    echo "  tgit      - Toggle the display of the current git branch in the prompt."
+    echo "  tvenv     - Toggle the display of the current virtual environment in the prompt."
+    echo "  tdir      - Toggle the display of the directory between short (\W) and long (\w) formats."
+    echo "  tem       - Toggle the display of emojis in the prompt."
+    echo "  ph        - Show this help message."
+    echo "  rp        - Reset the prompt."
+}

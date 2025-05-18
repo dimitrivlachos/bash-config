@@ -1,0 +1,39 @@
+# bashrc_core
+
+# export BASH_CONFIG_DIR="${BASH_CONFIG_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+
+# Resolve the real path of this script (even if symlinked)
+__realpath() {
+  local path="$1"
+  while [ -L "$path" ]; do
+    path="$(readlink "$path")"
+    [[ "$path" != /* ]] && path="$(dirname "$1")/$path"
+  done
+  cd "$(dirname "$path")" && pwd
+}
+
+export BASH_CONFIG_DIR="${BASH_CONFIG_DIR:-$(__realpath "${BASH_SOURCE[0]}")}"
+
+# Load shared components
+[ -f "$BASH_CONFIG_DIR/secrets/bash_secrets.sh" ] && source "$BASH_CONFIG_DIR/secrets/bash_secrets.sh"
+[ -f "$BASH_CONFIG_DIR/bash_aliases" ] && source "$BASH_CONFIG_DIR/bash_aliases"
+[ -f "$BASH_CONFIG_DIR/bash_exports" ] && source "$BASH_CONFIG_DIR/bash_exports"
+[ -f "$BASH_CONFIG_DIR/bash_prompt" ] && source "$BASH_CONFIG_DIR/bash_prompt"
+[ -f "$BASH_CONFIG_DIR/bash_tools" ] && source "$BASH_CONFIG_DIR/bash_tools"
+
+# Load specialisation
+case "${BASH_SPECIALISATION:-}" in
+  frostpaw)
+    source "$BASH_CONFIG_DIR/specialisations/bashrc_frostpaw"
+    ;;
+  diamond)
+    source "$BASH_CONFIG_DIR/specialisations/bashrc_diamond"
+    ;;
+  *)
+    echo "[WARN] Unknown specialisation: $1"
+    ;;
+esac
+
+# Initial prompt
+set_prompt
+PROMPT_COMMAND=set_prompt

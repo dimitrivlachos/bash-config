@@ -1,0 +1,71 @@
+# Module system
+module load cuda
+module load cmake
+
+# Custom path
+if [[ -n "${DIAMOND_USERNAME:-}" ]]; then
+  [[ -d "/dls/science/users/$DIAMOND_USERNAME/.tmux_install/tmux_build/bin" ]] && \
+    export PATH="/dls/science/users/$DIAMOND_USERNAME/.tmux_install/tmux_build/bin:$PATH"
+
+  [[ -d "/home/$DIAMOND_USERNAME/.ninja/ninja" ]] && \
+    export PATH="/home/$DIAMOND_USERNAME/.ninja/ninja:$PATH"
+
+  export CONDA_PKGS_DIRS="/dls/science/users/$DIAMOND_USERNAME/.conda/pkgs"
+fi
+
+# SSH agent
+if [[ -z "$SSH_AUTH_SOCK" && -n "${DIAMOND_GITHUB_KEY:-}" && -f "$DIAMOND_GITHUB_KEY" ]]; then
+  eval "$(ssh-agent -s)" 1>&2
+  ssh-add "$DIAMOND_GITHUB_KEY" 1>&2
+fi
+
+# Hostname mapping
+declare -A HOSTNAME_MAP=(
+  ["cs05r-sc-serv-53.diamond.ac.uk"]="i03-gpu"
+  ["cs05r-sc-serv-54.diamond.ac.uk"]="i24-gpu"
+)
+map_hostname() {
+    local host="$1"
+    echo "${HOSTNAME_MAP[$host]:-\h}"
+}
+
+# VSCode link check
+check_vscode_links() {
+  local base="/dls/mx-scratch/dimitri/vscode_remote"
+  local problems=0
+
+  declare -A links=(
+    ["~/.vscode-server/data/User/workspaceStorage"]="$base/workspaceStorage"
+    ["~/.vscode-server/extensions"]="$base/extensions"
+    ["~/.cache/Microsoft"]="$base/ms"
+    ["~/.cache/vscode-cpptools"]="/dls/science/users/rto52325/caches/vscode-cpptools"
+  )
+
+  echo "[VSCode Symlink Check]"
+
+  for path in "${!links[@]}"; do
+    local expanded_path
+    expanded_path=$(eval echo "$path")
+    local expected_target="${links[$path]}"
+
+    if [ -L "$expanded_path" ]; then
+      local actual_target
+      actual_target=$(readlink -f "$expanded_path")
+      if [ "$actual_target" = "$expected_target" ]; then
+        echo "✅ $path -> $expected_target"
+      else
+        echo "⚠️  $path is a symlink, but points to $actual_target (expected $expected_target)"
+        problems=1
+      fi
+    else
+      echo "❌ $path is not a symlink (expected -> $expected_target)"
+      problems=1
+    fi
+  done
+
+  if [ "$problems" -eq 0 ]; then
+    echo "✅ All VSCode paths are correctly linked."
+  else
+    echo "❗ One or more VSCode symlinks are missing or incorrect."
+  fi
+}
