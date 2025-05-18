@@ -35,6 +35,7 @@ bash-config/
 ```bash
 git clone git@github.com:dimitrivlachos/bash-config.git ~/Documents/bash-config
 cd ~/Documents/bash-config
+```
 
 ### 2. Run the installer
 ```bash
