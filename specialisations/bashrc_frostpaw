@@ -3,5 +3,9 @@ alias update='sudo pacman -Syu && yay -Sua'
 alias cleanup='sudo pacman -Rns $(pacman -Qdtq) 2>/dev/null || echo "No orphan packages."'
 alias full-update='update && cleanup'
 
-# Neofetch
-command -v neofetch &>/dev/null && neofetch
+# Fetch system information
+if command -v fastfetch &>/dev/null; then
+    fastfetch
+elif command -v neofetch &>/dev/null; then
+    neofetch
+fi
