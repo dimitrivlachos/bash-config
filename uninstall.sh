@@ -1,12 +1,19 @@
 #!/bin/bash
 set -euo pipefail
 
-TARGET_BASHRC="$HOME/.bashrc"
+DEFAULT_TARGET="$HOME/.bashrc"
+TARGET_BASHRC="${1:-$DEFAULT_TARGET}"
 TARGET_LINK="$HOME/.bashrc_core"
 
-echo "[INFO] Uninstalling bash-config..."
+echo "[INFO] Uninstalling bash-config from $TARGET_BASHRC"
 
-# 1. Remove the ~/.bashrc_core symlink if it points to bash-config
+# Validate target file exists
+if [[ ! -f "$TARGET_BASHRC" ]]; then
+  echo "[ERROR] Target file $TARGET_BASHRC does not exist."
+  exit 1
+fi
+
+# 1. Remove ~/.bashrc_core symlink if it points to anything
 if [[ -L "$TARGET_LINK" ]]; then
   echo "[INFO] Removing symlink: $TARGET_LINK"
   rm "$TARGET_LINK"
@@ -14,7 +21,7 @@ else
   echo "[INFO] No symlink found at $TARGET_LINK (skipped)"
 fi
 
-# 2. Remove the bash-config block from ~/.bashrc
+# 2. Remove managed block from target bashrc
 if grep -q "# >>> bash-config initialize >>>" "$TARGET_BASHRC"; then
   echo "[INFO] Removing bash-config block from $TARGET_BASHRC"
   sed -i '/# >>> bash-config initialize >>>/,/# <<< bash-config initialize <<</d' "$TARGET_BASHRC"
