@@ -17,7 +17,11 @@
     { "type": "cpu", "key": "CPU", "keyColor": "green" },
     { "type": "gpu", "key": "GPU", "keyColor": "green" },
     { "type": "memory", "key": "RAM", "keyColor": "green" },
-    { "type": "disk", "key": "Disk", "keyColor": "green" },
+    { "type": "disk", 
+      "keyColor": "green", 
+      "keyTemplate": "{NAME} ({MOUNT})", 
+      "keyWidth": 20
+    },
     {
       "type": "custom",
       "format": "\u001b[90m└────────────────────┘"
