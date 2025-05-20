@@ -73,10 +73,11 @@ check_vscode_links() {
 fastfetch() {
   # Expected fastfetch binary location
   local ff_bin="/dls/science/users/$USER/fastfetch/build/fastfetch"
+  local ff_config="$BASH_CONFIG_DIR/configs/fastfetch_diamond.jsonc"
 
   # Check if fastfetch is installed
   if [[ -x "$ff_bin" ]]; then
-    "$ff_bin" 2>/dev/null
+    "$ff_bin" --config "$ff_config" 2>/dev/null
   else
     # Echo error to stderr (>&2)
     # and return non-zero exit code to indicate failure
