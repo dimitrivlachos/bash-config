@@ -37,3 +37,9 @@ esac
 # Initial prompt
 set_prompt
 PROMPT_COMMAND=set_prompt
+
+# Show fastfetch on login
+# [[ $- == *i* ]] → only interactive shells
+if [[ $- == *i* ]]; then
+  ff
+fi

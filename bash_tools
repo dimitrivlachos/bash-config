@@ -12,3 +12,26 @@ mae() {
     fi
     mamba activate "$env_path"
 }
+
+# fastfetch wrapper that allows specialisations to override binary and config
+ff() {
+  local ff_bin="${FASTFETCH_BIN:-fastfetch}" # Use override if set, otherwise system
+  local ff_config="${FASTFETCH_CONFIG:-}"
+
+  # Check if fastfetch is installed
+  if command -v "$ff_bin" &>/dev/null; then
+    # Check if config file is set and exists
+    if [[ -n "$ff_config" && -f "$ff_config" ]]; then
+      # Run fastfetch with the specified config
+      "$ff_bin" --config "$ff_config" 2>/dev/null
+    else
+      # Run fastfetch without a config file
+      "$ff_bin" 2>/dev/null
+    fi
+  else
+    # Echo error to stderr (>&2)
+    # and return non-zero exit code to indicate failure
+    echo "[fastfetch] binary not found: $ff_bin" >&2
+    return 1
+  fi
+}

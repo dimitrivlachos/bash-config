@@ -70,24 +70,6 @@ check_vscode_links() {
   fi
 }
 
-fastfetch() {
-  # Expected fastfetch binary location
-  local ff_bin="/dls/science/users/$USER/fastfetch/build/fastfetch"
-  local ff_config="$BASH_CONFIG_DIR/configs/fastfetch_diamond.jsonc"
-
-  # Check if fastfetch is installed
-  if [[ -x "$ff_bin" ]]; then
-    "$ff_bin" --config "$ff_config" 2>/dev/null
-  else
-    # Echo error to stderr (>&2)
-    # and return non-zero exit code to indicate failure
-    echo "[fastfetch] binary not found at $ff_bin" >&2
-    return 1
-  fi
-}
-
-# Show fastfetch on login (Diamond only)
-# [[ $- == *i* ]] → only interactive shells
-if [[ $- == *i* ]]; then
-  fastfetch
-fi
+# Set fastfetch binary and config
+export FASTFETCH_BIN="/dls/science/users/$USER/fastfetch/build/fastfetch"
+export FASTFETCH_CONFIG="$BASH_CONFIG_DIR/configs/fastfetch_diamond.jsonc"

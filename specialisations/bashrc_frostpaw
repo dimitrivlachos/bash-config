@@ -3,10 +3,5 @@ alias update='sudo pacman -Syu && yay -Sua'
 alias cleanup='sudo pacman -Rns $(pacman -Qdtq) 2>/dev/null || echo "No orphan packages."'
 alias full-update='update && cleanup'
 
-# Only run fastfetch if in an interactive terminal and not inside VSCode
-# [[ $- == *i* ]] → only interactive shells
-# [[ -z "${TERM_PROGRAM:-}" ]] → only run if not inside a terminal emulator
-# command -v fastfetch &>/dev/null → check if fastfetch is installed
-if [[ $- == *i* && -z "${TERM_PROGRAM:-}" ]]; then
-  command -v fastfetch &>/dev/null && fastfetch
-fi
+# Not exporting FASTFETCH_BIN as the binary is already in the PATH
+export FASTFETCH_CONFIG="$BASH_CONFIG_DIR/configs/fastfetch_frostpaw.jsonc"
