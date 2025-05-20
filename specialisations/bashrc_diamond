@@ -69,3 +69,11 @@ check_vscode_links() {
     echo "❗ One or more VSCode symlinks are missing or incorrect."
   fi
 }
+
+# Show fastfetch on login (Diamond only)
+# [[ $- == *i* ]] → only interactive shells
+# [[ -x "/dls/science/users/$USER/fastfetch/build/fastfetch" ]] → check if fastfetch is installed
+if [[ $- == *i* && -x "/dls/science/users/$USER/fastfetch/build/fastfetch" ]]; then
+  /dls/science/users/$USER/fastfetch/build/fastfetch \
+  2>/dev/null
+fi
