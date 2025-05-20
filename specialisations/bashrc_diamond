@@ -70,10 +70,23 @@ check_vscode_links() {
   fi
 }
 
+fastfetch() {
+  # Expected fastfetch binary location
+  local ff_bin="/dls/science/users/$USER/fastfetch/build/fastfetch"
+
+  # Check if fastfetch is installed
+  if [[ -x "$ff_bin" ]]; then
+    "$ff_bin" 2>/dev/null
+  else
+    # Echo error to stderr (>&2)
+    # and return non-zero exit code to indicate failure
+    echo "[fastfetch] binary not found at $ff_bin" >&2
+    return 1
+  fi
+}
+
 # Show fastfetch on login (Diamond only)
 # [[ $- == *i* ]] → only interactive shells
-# [[ -x "/dls/science/users/$USER/fastfetch/build/fastfetch" ]] → check if fastfetch is installed
-if [[ $- == *i* && -x "/dls/science/users/$USER/fastfetch/build/fastfetch" ]]; then
-  /dls/science/users/$USER/fastfetch/build/fastfetch \
-  2>/dev/null
+if [[ $- == *i* ]]; then
+  fastfetch
 fi
