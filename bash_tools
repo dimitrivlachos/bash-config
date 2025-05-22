@@ -1,16 +1,25 @@
 # Local activate helper
 mae() {
-    local env_name="${1:-ENV}"
-    local env_path=""
-    if [ -d "./$env_name" ]; then
-        env_path="$(pwd)/$env_name"
-    elif [ -d "../$env_name" ]; then
-        env_path="$(cd .. && pwd)/$env_name"
-    else
-        echo "No environment '$env_name' found"
-        return 1
-    fi
+  local env_name="${1:-ENV}"
+  local env_path=""
+
+  if [ -d "./$env_name" ]; then
+    env_path="$(pwd)/$env_name"
+  elif [ -d "../$env_name" ]; then
+    env_path="$(cd .. && pwd)/$env_name"
+  else
+    echo "No environment '$env_name' found in current or parent directory."
+    return 1
+  fi
+
+  if command -v micromamba &>/dev/null; then
+    micromamba activate "$env_path"
+  elif command -v mamba &>/dev/null; then
     mamba activate "$env_path"
+  else
+    echo "Neither micromamba nor mamba found in PATH."
+    return 1
+  fi
 }
 
 # fastfetch wrapper that allows specialisations to override binary and config
