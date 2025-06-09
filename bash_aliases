@@ -3,6 +3,7 @@ alias cdu='cd /dls/science/users/rto52325/'  # Work-specific, but harmless at ho
 alias ma='mamba activate '
 alias md='mamba deactivate'
 alias maeb='mae && cd build/'
+alias clearf='clear && ff'
 
 # Custom prompt toggles
 alias tgit='tgit'
