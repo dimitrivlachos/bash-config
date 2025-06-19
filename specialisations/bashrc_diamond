@@ -23,6 +23,8 @@ fi
 declare -A HOSTNAME_MAP=(
   ["cs05r-sc-serv-53.diamond.ac.uk"]="i03-gpu"
   ["cs05r-sc-serv-54.diamond.ac.uk"]="i24-gpu"
+  ["cs05r-sc-gh-01.diamond.ac.uk"]="mx-gh"
+  ["bl04j-sc-gh-01.diamond.ac.uk"]="i04-1-gpu"
 )
 map_hostname() {
     local host="$1"
