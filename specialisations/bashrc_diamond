@@ -33,14 +33,14 @@ map_hostname() {
 
 # VSCode link check
 check_vscode_links() {
-  local base="/dls/mx-scratch/dimitri/vscode_remote"
+  local base="$DIAMOND_SCRATCH_DIR/vscode_remote"
   local problems=0
 
   declare -A links=(
     ["~/.vscode-server/data/User/workspaceStorage"]="$base/workspaceStorage"
     ["~/.vscode-server/extensions"]="$base/extensions"
     ["~/.cache/Microsoft"]="$base/ms"
-    ["~/.cache/vscode-cpptools"]="/dls/science/users/rto52325/caches/vscode-cpptools"
+    ["~/.cache/vscode-cpptools"]="$DIAMOND_WORK_DIR/caches/vscode-cpptools"
   )
 
   echo "[VSCode Symlink Check]"
