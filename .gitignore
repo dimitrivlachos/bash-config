@@ -1,1 +1,4 @@
-secrets/
+secrets/*
+
+# Explicitly un-ingore an example secrets file
+!secrets/example_secrets.sh
