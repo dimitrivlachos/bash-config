@@ -76,3 +76,4 @@ export FASTFETCH_CONFIG="$BASH_CONFIG_DIR/configs/fastfetch_diamond.jsonc"
 
 # Diamond-specific aliases
 alias cdu='cd "$DIAMOND_WORK_DIR"'
+alias cdx='cd "$DIAMOND_SCRATCH_DIR"'
