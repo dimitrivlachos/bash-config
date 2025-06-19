@@ -73,3 +73,6 @@ check_vscode_links() {
 # Set fastfetch binary and config
 export FASTFETCH_BIN="/dls/science/users/$USER/fastfetch/build/fastfetch"
 export FASTFETCH_CONFIG="$BASH_CONFIG_DIR/configs/fastfetch_diamond.jsonc"
+
+# Diamond-specific aliases
+alias cdu='cd "$DIAMOND_WORK_DIR"'
