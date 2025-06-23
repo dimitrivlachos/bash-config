@@ -1,6 +1,10 @@
 # Module system
-module load cuda
-module load cmake
+# If version is not set, default to known good versions
+CUDA_VERSION="${CUDA_VERSION:-12.6}"
+CMAKE_VERSION="${CMAKE_VERSION:-4.0.2}"
+# Load modules
+module load cuda/"$CUDA_VERSION"
+module load cmake/"$CMAKE_VERSION"
 
 # Custom path
 if [[ -n "${DIAMOND_USERNAME:-}" ]]; then
