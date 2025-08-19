@@ -44,3 +44,84 @@ ff() {
     return 1
   fi
 }
+
+# SSH agent management functions
+cleanup_ssh_agents() {
+  local agent_file="${1:-$HOME/.ssh-agent-info}"
+  local current_agents
+  local stored_pid
+  
+  # Get currently stored agent PID
+  if [[ -f "$agent_file" ]]; then
+    stored_pid=$(grep "SSH_AGENT_PID=" "$agent_file" 2>/dev/null | cut -d'=' -f2 | tr -d ';')
+  fi
+  
+  # Get all running ssh-agent processes
+  mapfile -t current_agents < <(pgrep -u "$USER" ssh-agent)
+  
+  # Kill agents that aren't the stored one
+  for pid in "${current_agents[@]}"; do
+    if [[ -n "$stored_pid" && "$pid" != "$stored_pid" ]]; then
+      kill "$pid" 2>/dev/null && echo "Cleaned up orphaned ssh-agent (PID: $pid)" >&2
+    elif [[ -z "$stored_pid" ]]; then
+      # No stored agent, kill all agents (will start fresh)
+      kill "$pid" 2>/dev/null && echo "Cleaned up untracked ssh-agent (PID: $pid)" >&2
+    fi
+  done
+}
+
+# Setup SSH agent with key and cleanup
+setup_ssh_agent() {
+  local key_file="$1"
+  local agent_file="${2:-$HOME/.ssh-agent-info}"
+  
+  if [[ -z "$key_file" || ! -f "$key_file" ]]; then
+    echo "SSH key file not found: $key_file" >&2
+    return 1
+  fi
+  
+  # Clean up orphaned agents first
+  cleanup_ssh_agents "$agent_file"
+  
+  # Check if we already have a running agent with the key loaded
+  if ! ssh-add -l >/dev/null 2>&1 || ! ssh-add -l 2>/dev/null | grep -q "$(ssh-keygen -lf "$key_file" 2>/dev/null | awk '{print $2}')"; then
+    
+    # Try to find existing agent info
+    if [[ -f "$agent_file" ]]; then
+      source "$agent_file" >/dev/null
+      if ssh-add -l >/dev/null 2>&1; then
+        # Agent is running, add key if not already present
+        if ! ssh-add -l 2>/dev/null | grep -q "$(ssh-keygen -lf "$key_file" 2>/dev/null | awk '{print $2}')"; then
+          ssh-add "$key_file" 1>&2
+        fi
+      else
+        # Agent not running or not accessible, clean up and start new one
+        rm -f "$agent_file"
+        eval "$(ssh-agent -s)" 1>&2
+        echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK; export SSH_AUTH_SOCK;" > "$agent_file"
+        echo "SSH_AGENT_PID=$SSH_AGENT_PID; export SSH_AGENT_PID;" >> "$agent_file"
+        ssh-add "$key_file" 1>&2
+      fi
+    else
+      # No agent info file, start new agent
+      eval "$(ssh-agent -s)" 1>&2
+      echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK; export SSH_AUTH_SOCK;" > "$agent_file"
+      echo "SSH_AGENT_PID=$SSH_AGENT_PID; export SSH_AGENT_PID;" >> "$agent_file"
+      ssh-add "$key_file" 1>&2
+    fi
+  fi
+  
+  # Set up cleanup on exit for interactive shells
+  if [[ $- == *i* ]]; then
+    cleanup_ssh_agent_on_exit() {
+      if [[ -f "$agent_file" && -n "$SSH_AGENT_PID" ]]; then
+        local stored_pid
+        stored_pid=$(grep "SSH_AGENT_PID=" "$agent_file" 2>/dev/null | cut -d'=' -f2 | tr -d ';')
+        if [[ "$stored_pid" == "$SSH_AGENT_PID" ]]; then
+          rm -f "$agent_file"
+        fi
+      fi
+    }
+    trap cleanup_ssh_agent_on_exit EXIT
+  fi
+}

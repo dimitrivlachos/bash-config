@@ -18,9 +18,8 @@ if [[ -n "${DIAMOND_USERNAME:-}" ]]; then
 fi
 
 # SSH agent
-if [[ -z "$SSH_AUTH_SOCK" && -n "${DIAMOND_GITHUB_KEY:-}" && -f "$DIAMOND_GITHUB_KEY" ]]; then
-  eval "$(ssh-agent -s)" 1>&2
-  ssh-add "$DIAMOND_GITHUB_KEY" 1>&2
+if [[ -n "${DIAMOND_GITHUB_KEY:-}" && -f "$DIAMOND_GITHUB_KEY" ]]; then
+  setup_ssh_agent "$DIAMOND_GITHUB_KEY"
 fi
 
 # Hostname mapping
