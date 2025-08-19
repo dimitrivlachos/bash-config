@@ -23,7 +23,7 @@ mae() {
 }
 
 # fastfetch wrapper that allows specialisations to override binary and config
-ff() {
+bc_ff() {
   local ff_bin="${FASTFETCH_BIN:-fastfetch}" # Use override if set, otherwise system
   local ff_config="${FASTFETCH_CONFIG:-}"
 
@@ -45,8 +45,33 @@ ff() {
   fi
 }
 
+# Backward compatibility alias
+ff() { bc_ff "$@"; }
+
 # SSH agent management functions
-cleanup_ssh_agents() {
+
+# Check if a specific SSH key is loaded in the agent
+bc_is_ssh_key_loaded() {
+  local key_file="$1"
+  if [[ -z "$key_file" || ! -f "$key_file" ]]; then
+    return 1
+  fi
+  
+  local key_fingerprint
+  key_fingerprint=$(ssh-keygen -lf "$key_file" 2>/dev/null | awk '{print $2}')
+  [[ -n "$key_fingerprint" ]] && ssh-add -l 2>/dev/null | grep -q "$key_fingerprint"
+}
+
+# Start a new SSH agent and save info to file
+bc_start_ssh_agent() {
+  local agent_file="$1"
+  eval "$(ssh-agent -s)" >&2
+  echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK; export SSH_AUTH_SOCK;" > "$agent_file"
+  echo "SSH_AGENT_PID=$SSH_AGENT_PID; export SSH_AGENT_PID;" >> "$agent_file"
+}
+
+# Clean up orphaned SSH agents
+bc_cleanup_ssh_agents() {
   local agent_file="${1:-$HOME/.ssh-agent-info}"
   local current_agents
   local stored_pid
@@ -57,7 +82,7 @@ cleanup_ssh_agents() {
   fi
   
   # Get all running ssh-agent processes
-  mapfile -t current_agents < <(pgrep -u "$USER" ssh-agent)
+  mapfile -t current_agents < <(pgrep -u "$USER" ssh-agent 2>/dev/null)
   
   # Kill agents that aren't the stored one
   for pid in "${current_agents[@]}"; do
@@ -71,7 +96,7 @@ cleanup_ssh_agents() {
 }
 
 # Setup SSH agent with key and cleanup
-setup_ssh_agent() {
+bc_setup_ssh_agent() {
   local key_file="$1"
   local agent_file="${2:-$HOME/.ssh-agent-info}"
   
@@ -81,39 +106,35 @@ setup_ssh_agent() {
   fi
   
   # Clean up orphaned agents first
-  cleanup_ssh_agents "$agent_file"
+  bc_cleanup_ssh_agents "$agent_file"
   
   # Check if we already have a running agent with the key loaded
-  if ! ssh-add -l >/dev/null 2>&1 || ! ssh-add -l 2>/dev/null | grep -q "$(ssh-keygen -lf "$key_file" 2>/dev/null | awk '{print $2}')"; then
+  if ! ssh-add -l >/dev/null 2>&1 || ! bc_is_ssh_key_loaded "$key_file"; then
     
     # Try to find existing agent info
     if [[ -f "$agent_file" ]]; then
       source "$agent_file" >/dev/null
       if ssh-add -l >/dev/null 2>&1; then
         # Agent is running, add key if not already present
-        if ! ssh-add -l 2>/dev/null | grep -q "$(ssh-keygen -lf "$key_file" 2>/dev/null | awk '{print $2}')"; then
-          ssh-add "$key_file" 1>&2
+        if ! bc_is_ssh_key_loaded "$key_file"; then
+          ssh-add "$key_file" >&2
         fi
       else
         # Agent not running or not accessible, clean up and start new one
         rm -f "$agent_file"
-        eval "$(ssh-agent -s)" 1>&2
-        echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK; export SSH_AUTH_SOCK;" > "$agent_file"
-        echo "SSH_AGENT_PID=$SSH_AGENT_PID; export SSH_AGENT_PID;" >> "$agent_file"
-        ssh-add "$key_file" 1>&2
+        bc_start_ssh_agent "$agent_file"
+        ssh-add "$key_file" >&2
       fi
     else
       # No agent info file, start new agent
-      eval "$(ssh-agent -s)" 1>&2
-      echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK; export SSH_AUTH_SOCK;" > "$agent_file"
-      echo "SSH_AGENT_PID=$SSH_AGENT_PID; export SSH_AGENT_PID;" >> "$agent_file"
-      ssh-add "$key_file" 1>&2
+      bc_start_ssh_agent "$agent_file"
+      ssh-add "$key_file" >&2
     fi
   fi
   
   # Set up cleanup on exit for interactive shells
   if [[ $- == *i* ]]; then
-    cleanup_ssh_agent_on_exit() {
+    bc_cleanup_ssh_agent_on_exit() {
       if [[ -f "$agent_file" && -n "$SSH_AGENT_PID" ]]; then
         local stored_pid
         stored_pid=$(grep "SSH_AGENT_PID=" "$agent_file" 2>/dev/null | cut -d'=' -f2 | tr -d ';')
@@ -122,6 +143,92 @@ setup_ssh_agent() {
         fi
       fi
     }
-    trap cleanup_ssh_agent_on_exit EXIT
+    trap bc_cleanup_ssh_agent_on_exit EXIT
   fi
+}
+
+# Configuration validation function
+bc_validate_config() {
+  local issues=0
+  
+  echo "[Config Validation]"
+  
+  # Check BASH_CONFIG_DIR
+  if [[ -n "${BASH_CONFIG_DIR:-}" && -d "$BASH_CONFIG_DIR" ]]; then
+    echo "✅ Config directory found: $BASH_CONFIG_DIR"
+  else
+    echo "❌ Config directory missing or not set: ${BASH_CONFIG_DIR:-'(not set)'}"
+    ((issues++))
+  fi
+  
+  # Check specialization file exists
+  if [[ -n "${BASH_SPECIALISATION:-}" ]]; then
+    local spec_file="$BASH_CONFIG_DIR/specialisations/bashrc_$BASH_SPECIALISATION"
+    if [[ -f "$spec_file" ]]; then
+      echo "✅ Specialisation file found: $spec_file"
+    else
+      echo "❌ Specialisation file missing: $spec_file"
+      ((issues++))
+    fi
+  else
+    echo "ℹ️  No specialisation set"
+  fi
+  
+  # Check fastfetch config
+  if [[ -n "${FASTFETCH_CONFIG:-}" ]]; then
+    if [[ -f "$FASTFETCH_CONFIG" ]]; then
+      echo "✅ Fastfetch config found: $FASTFETCH_CONFIG"
+    else
+      echo "❌ Fastfetch config missing: $FASTFETCH_CONFIG"
+      ((issues++))
+    fi
+  fi
+  
+  # Check fastfetch binary
+  if [[ -n "${FASTFETCH_BIN:-}" ]]; then
+    if command -v "$FASTFETCH_BIN" &>/dev/null; then
+      echo "✅ Fastfetch binary found: $FASTFETCH_BIN"
+    else
+      echo "❌ Fastfetch binary not executable: $FASTFETCH_BIN"
+      ((issues++))
+    fi
+  fi
+  
+  # Check secrets file
+  local secrets_file="$BASH_CONFIG_DIR/secrets/bash_secrets.sh"
+  if [[ -f "$secrets_file" ]]; then
+    echo "✅ Secrets file found"
+  else
+    echo "⚠️  No secrets file (this may be intentional)"
+  fi
+  
+  # Check SSH key if set
+  if [[ -n "${DIAMOND_GITHUB_KEY:-}" ]]; then
+    if [[ -f "$DIAMOND_GITHUB_KEY" ]]; then
+      echo "✅ SSH key file found: $DIAMOND_GITHUB_KEY"
+    else
+      echo "❌ SSH key file missing: $DIAMOND_GITHUB_KEY"
+      ((issues++))
+    fi
+  fi
+  
+  if [[ $issues -eq 0 ]]; then
+    echo "✅ Configuration looks good!"
+    return 0
+  else
+    echo "❗ Found $issues issue(s)"
+    return 1
+  fi
+}
+
+# Display configuration information
+bc_info() {
+  echo "Bash Configuration Information:"
+  echo "  Version: ${BASH_CONFIG_VERSION:-'unknown'}"
+  echo "  Directory: ${BASH_CONFIG_DIR:-'not set'}"
+  echo "  Specialisation: ${BASH_SPECIALISATION:-'none'}"
+  echo "  Host: $(hostname)"
+  echo "  User: $USER"
+  [[ -n "${FASTFETCH_BIN:-}" ]] && echo "  Fastfetch: $FASTFETCH_BIN"
+  [[ -n "${FASTFETCH_CONFIG:-}" ]] && echo "  Fastfetch Config: $FASTFETCH_CONFIG"
 }

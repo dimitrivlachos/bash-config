@@ -1,5 +1,7 @@
 # bashrc_core
 
+export BASH_CONFIG_VERSION="2.0.0"
+
 # export BASH_CONFIG_DIR="${BASH_CONFIG_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 
 # Resolve the real path of this script (even if symlinked)
@@ -14,25 +16,47 @@ __realpath() {
 
 export BASH_CONFIG_DIR="${BASH_CONFIG_DIR:-$(__realpath "${BASH_SOURCE[0]}")}"
 
-# Load shared components
-[ -f "$BASH_CONFIG_DIR/secrets/bash_secrets.sh" ] && source "$BASH_CONFIG_DIR/secrets/bash_secrets.sh"
-[ -f "$BASH_CONFIG_DIR/bash_aliases" ] && source "$BASH_CONFIG_DIR/bash_aliases"
-[ -f "$BASH_CONFIG_DIR/bash_exports" ] && source "$BASH_CONFIG_DIR/bash_exports"
-[ -f "$BASH_CONFIG_DIR/bash_prompt" ] && source "$BASH_CONFIG_DIR/bash_prompt"
-[ -f "$BASH_CONFIG_DIR/bash_tools" ] && source "$BASH_CONFIG_DIR/bash_tools"
+# Validate configuration directory
+if [[ ! -d "$BASH_CONFIG_DIR" ]]; then
+  echo "[ERROR] BASH_CONFIG_DIR not found: $BASH_CONFIG_DIR" >&2
+  return 1 2>/dev/null || exit 1
+fi
+
+# Load shared components with error checking
+bc_source_if_exists() {
+  local file="$1"
+  local description="${2:-$file}"
+  if [[ -f "$file" ]]; then
+    source "$file"
+  else
+    echo "[WARN] $description not found: $file" >&2
+  fi
+}
+
+bc_source_if_exists "$BASH_CONFIG_DIR/secrets/bash_secrets.sh" "Secrets file"
+bc_source_if_exists "$BASH_CONFIG_DIR/bash_aliases" "Aliases"
+bc_source_if_exists "$BASH_CONFIG_DIR/bash_exports" "Exports"
+bc_source_if_exists "$BASH_CONFIG_DIR/bash_prompt" "Prompt configuration"
+bc_source_if_exists "$BASH_CONFIG_DIR/bash_tools" "Tools and functions"
 
 # Load specialisation
-case "${BASH_SPECIALISATION:-}" in
-  frostpaw)
-    source "$BASH_CONFIG_DIR/specialisations/bashrc_frostpaw"
-    ;;
-  diamond)
-    source "$BASH_CONFIG_DIR/specialisations/bashrc_diamond"
-    ;;
-  *)
-    echo "[WARN] Unknown specialisation: $1"
-    ;;
-esac
+if [[ -n "${BASH_SPECIALISATION:-}" ]]; then
+  spec_file="$BASH_CONFIG_DIR/specialisations/bashrc_$BASH_SPECIALISATION"
+  case "$BASH_SPECIALISATION" in
+    frostpaw|diamond)
+      if [[ -f "$spec_file" ]]; then
+        source "$spec_file"
+        # echo "[INFO] Loaded specialisation: $BASH_SPECIALISATION" >&2
+      else
+        echo "[ERROR] Specialisation file not found: $spec_file" >&2
+      fi
+      ;;
+    *)
+      echo "[ERROR] Unknown specialisation: $BASH_SPECIALISATION" >&2
+      echo "[INFO] Available specialisations: frostpaw, diamond" >&2
+      ;;
+  esac
+fi
 
 # Initial prompt
 set_prompt
@@ -41,5 +65,5 @@ PROMPT_COMMAND=set_prompt
 # Show fastfetch on login
 # [[ $- == *i* ]] → only interactive shells
 if [[ $- == *i* ]]; then
-  ff
+  bc_ff
 fi

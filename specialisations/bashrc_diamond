@@ -75,8 +75,14 @@ check_vscode_links() {
   fi
 }
 
-# Set fastfetch binary and config
-export FASTFETCH_BIN="/dls/science/users/$USER/fastfetch/build/fastfetch"
+# Set fastfetch binary and config with validation
+local ff_path="/dls/science/users/$USER/fastfetch/build/fastfetch"
+if [[ -x "$ff_path" ]]; then
+  export FASTFETCH_BIN="$ff_path"
+else
+  echo "[WARN] Custom fastfetch binary not found or not executable: $ff_path" >&2
+  echo "[INFO] Falling back to system fastfetch" >&2
+fi
 export FASTFETCH_CONFIG="$BASH_CONFIG_DIR/configs/fastfetch_diamond.jsonc"
 
 # Diamond-specific aliases

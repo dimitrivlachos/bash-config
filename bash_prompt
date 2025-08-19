@@ -29,10 +29,16 @@ parse_virtualenv() {
 }
 
 # Hostname mapping
-# This function passes through the hostname without any changes.
-# Override this function in a specialisation if you want to map hostnames.
+# This function can be overridden by specialisations to provide custom hostname mappings.
+# Specialisations should define HOSTNAME_MAP associative array if they want custom mappings.
 map_hostname() {
-    echo "$1"
+  local host="$1"
+  # Check if HOSTNAME_MAP is defined (from specialization)
+  if declare -p HOSTNAME_MAP &>/dev/null 2>&1; then
+    echo "${HOSTNAME_MAP[$host]:-$host}"
+  else
+    echo "$host"
+  fi
 }
 
 # Prompt
