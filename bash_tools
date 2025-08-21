@@ -295,6 +295,18 @@ bc_validate_config() {
     fi
   fi
   
+  # Check history configuration
+  if [[ -n "${HISTFILE:-}" ]]; then
+    if [[ -f "$HISTFILE" ]]; then
+      bc_log_success "History file found: $HISTFILE"
+      local hist_size
+      hist_size=$(wc -l < "$HISTFILE" 2>/dev/null || echo "0")
+      bc_log_info "History contains $hist_size commands"
+    else
+      bc_log_warn "History file path set but file doesn't exist: $HISTFILE"
+    fi
+  fi
+  
   if [[ $issues -eq 0 ]]; then
     bc_log_success "Configuration looks good!"
     return 0
@@ -322,6 +334,19 @@ bc_info() {
     echo -e "  ${BC_COLOR_BLUE}SSH Agent:${BC_COLOR_RESET} ${BC_COLOR_GREEN}Active${BC_COLOR_RESET} (${key_count} key(s) loaded)"
   else
     echo -e "  ${BC_COLOR_BLUE}SSH Agent:${BC_COLOR_RESET} ${BC_COLOR_YELLOW}Inactive${BC_COLOR_RESET}"
+  fi
+  
+  # Show history status
+  if [[ -n "${HISTFILE:-}" ]]; then
+    if [[ -f "$HISTFILE" ]]; then
+      local hist_size
+      hist_size=$(wc -l < "$HISTFILE" 2>/dev/null || echo "0")
+      echo -e "  ${BC_COLOR_BLUE}History:${BC_COLOR_RESET} ${BC_COLOR_GREEN}Unified${BC_COLOR_RESET} ($hist_size commands)"
+    else
+      echo -e "  ${BC_COLOR_BLUE}History:${BC_COLOR_RESET} ${BC_COLOR_YELLOW}Local only${BC_COLOR_RESET}"
+    fi
+  else
+    echo -e "  ${BC_COLOR_BLUE}History:${BC_COLOR_RESET} ${BC_COLOR_YELLOW}Default${BC_COLOR_RESET}"
   fi
 }
 
