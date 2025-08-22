@@ -80,6 +80,28 @@ fi
 # CORE HISTORY MANAGEMENT FUNCTIONS
 # ==============================================================================
 
+# Utility function for consistent timestamp formatting
+# Centralizes timestamp parsing to eliminate code duplication
+bc_format_timestamp() {
+  local timestamp="$1"
+  local format="${2:-compact}"  # compact, full, epoch
+  
+  case "$format" in
+    "full")
+      date -d "@$timestamp" "+%Y-%m-%d %H:%M:%S" 2>/dev/null || echo "unknown"
+      ;;
+    "compact")
+      date -d "@$timestamp" "+%m-%d %H:%M" 2>/dev/null || echo "unknown"
+      ;;
+    "epoch")
+      echo "$timestamp"
+      ;;
+    *)
+      date -d "@$timestamp" "+%m-%d %H:%M" 2>/dev/null || echo "unknown"
+      ;;
+  esac
+}
+
 # Manual history synchronization
 # Useful when you want to immediately sync history without waiting for the
 # next command prompt, or when troubleshooting sync issues.
@@ -132,7 +154,7 @@ hgrep() {
       if [[ "$line" =~ ^#([0-9]+)$ ]]; then
         # This is a timestamp line
         local timestamp="${BASH_REMATCH[1]}"
-        current_timestamp=$(date -d "@$timestamp" "+%m-%d %H:%M" 2>/dev/null || echo "unknown")
+        current_timestamp=$(bc_format_timestamp "$timestamp" "compact")
       else
         # This is a command line - check if it matches our pattern
         if echo "$line" | grep -q "$pattern"; then
@@ -166,7 +188,7 @@ recent_history() {
         # This is a timestamp line - convert to readable format
         local timestamp="${BASH_REMATCH[1]}"
         local readable_time
-        readable_time=$(date -d "@$timestamp" "+%m-%d %H:%M" 2>/dev/null || echo "unknown")
+        readable_time=$(bc_format_timestamp "$timestamp" "compact")
         printf "${BC_COLOR_GREEN}%s${BC_COLOR_RESET} " "$readable_time"
       else
         # This is a command line
@@ -217,12 +239,12 @@ hr_formatted() {
       case "$format" in
         "full")
           local readable_time
-          readable_time=$(date -d "@$timestamp" "+%Y-%m-%d %H:%M:%S" 2>/dev/null || echo "unknown")
+          readable_time=$(bc_format_timestamp "$timestamp" "full")
           printf "${BC_COLOR_GREEN}[%s]${BC_COLOR_RESET} " "$readable_time"
           ;;
         "compact")
           local readable_time
-          readable_time=$(date -d "@$timestamp" "+%m-%d %H:%M" 2>/dev/null || echo "unknown")
+          readable_time=$(bc_format_timestamp "$timestamp" "compact")
           printf "${BC_COLOR_GREEN}%s${BC_COLOR_RESET} " "$readable_time"
           ;;
         "timestamps")
@@ -364,7 +386,7 @@ bc_history_search() {
         if [[ "$entry" =~ ^TIMESTAMP:([0-9]+)$ ]]; then
           local ts="${BASH_REMATCH[1]}"
           local readable_time
-          readable_time=$(date -d "@$ts" "+%m-%d %H:%M:%S" 2>/dev/null || echo "unknown")
+          readable_time=$(bc_format_timestamp "$ts" "full")
           echo -e "  ${BC_COLOR_GREEN}$readable_time${BC_COLOR_RESET}"
         elif [[ "$entry" =~ ^COMMAND:([0-9]+):(.*)$ ]]; then
           local cmd_line="${BASH_REMATCH[1]}"
@@ -430,6 +452,7 @@ bc_import_history() {
 # Comprehensive help system for history management
 # Displays detailed information about all available commands, usage examples,
 # and troubleshooting tips for the unified history system.
+# Uses centralized timestamp formatting for consistency.
 hhelp() {
   cat << 'EOF'
 ═══════════════════════════════════════════════════════════════════════════════
