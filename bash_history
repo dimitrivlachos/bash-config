@@ -121,14 +121,32 @@ hgrep() {
     return 1
   fi
   
-  # Search in unified history with hostname context
+  # Search in unified history with proper timestamp handling
   if [[ -f "$HISTFILE" ]]; then
-    grep -n "$pattern" "$HISTFILE" | while IFS=':' read -r line_num timestamp command; do
-      echo -e "${BC_COLOR_BLUE}$line_num${BC_COLOR_RESET}: ${BC_COLOR_GREEN}$timestamp${BC_COLOR_RESET} $command"
-    done
+    echo -e "${BC_COLOR_CYAN}🔍 Search results for: ${BC_COLOR_YELLOW}$pattern${BC_COLOR_RESET}"
+    
+    local current_timestamp=""
+    local line_num=1
+    
+    while IFS= read -r line; do
+      if [[ "$line" =~ ^#([0-9]+)$ ]]; then
+        # This is a timestamp line
+        local timestamp="${BASH_REMATCH[1]}"
+        current_timestamp=$(date -d "@$timestamp" "+%m-%d %H:%M" 2>/dev/null || echo "unknown")
+      else
+        # This is a command line - check if it matches our pattern
+        if echo "$line" | grep -q "$pattern"; then
+          # Highlight the matching pattern
+          local highlighted_line
+          highlighted_line=$(echo "$line" | sed "s/$pattern/${BC_COLOR_RED}&${BC_COLOR_RESET}/g")
+          echo -e "${BC_COLOR_GREEN}$current_timestamp${BC_COLOR_RESET} ${BC_COLOR_BLUE}$line_num${BC_COLOR_RESET}: $highlighted_line"
+        fi
+        ((line_num++))
+      fi
+    done < "$HISTFILE"
   else
     bc_log_warn "Unified history file not found"
-    history | grep "$pattern"
+    history | grep --color=auto "$pattern"
   fi
 }
 
@@ -138,10 +156,90 @@ hgrep() {
 recent_history() {
   local count="${1:-20}"
   if [[ -f "$HISTFILE" ]]; then
-    tail -n "$count" "$HISTFILE" | nl -v1 -s': '
+    # Parse history with timestamps and format nicely
+    local line_num=1
+    local commands_shown=0
+    
+    # Read from end of file to get recent commands
+    tac "$HISTFILE" | while IFS= read -r line; do
+      if [[ "$line" =~ ^#([0-9]+)$ ]]; then
+        # This is a timestamp line - convert to readable format
+        local timestamp="${BASH_REMATCH[1]}"
+        local readable_time
+        readable_time=$(date -d "@$timestamp" "+%m-%d %H:%M" 2>/dev/null || echo "unknown")
+        printf "${BC_COLOR_GREEN}%s${BC_COLOR_RESET} " "$readable_time"
+      else
+        # This is a command line
+        printf "${BC_COLOR_BLUE}%3d${BC_COLOR_RESET}: %s\n" "$((count - commands_shown))" "$line"
+        ((commands_shown++))
+        # Stop if we've shown enough commands
+        if ((commands_shown >= count)); then
+          break
+        fi
+      fi
+    done | tac  # Reverse again to show in chronological order
   else
     history "$count"
   fi
+}
+
+# Enhanced recent history with multiple display options
+# Provides different ways to view recent commands with timestamps
+hr_formatted() {
+  local count="${1:-20}"
+  local format="${2:-compact}"  # compact, full, timestamps-only
+  
+  if [[ ! -f "$HISTFILE" ]]; then
+    bc_log_warn "No unified history file found"
+    history "$count"
+    return
+  fi
+  
+  case "$format" in
+    "full")
+      echo -e "${BC_COLOR_CYAN}Recent $count commands (full format):${BC_COLOR_RESET}"
+      ;;
+    "compact")
+      echo -e "${BC_COLOR_CYAN}Recent $count commands:${BC_COLOR_RESET}"
+      ;;
+    "timestamps")
+      echo -e "${BC_COLOR_CYAN}Recent $count commands (with timestamps):${BC_COLOR_RESET}"
+      ;;
+  esac
+  
+  local commands_shown=0
+  
+  # Read from end of file to get recent commands
+  tac "$HISTFILE" | while IFS= read -r line; do
+    if [[ "$line" =~ ^#([0-9]+)$ ]]; then
+      # This is a timestamp line
+      local timestamp="${BASH_REMATCH[1]}"
+      case "$format" in
+        "full")
+          local readable_time
+          readable_time=$(date -d "@$timestamp" "+%Y-%m-%d %H:%M:%S" 2>/dev/null || echo "unknown")
+          printf "${BC_COLOR_GREEN}[%s]${BC_COLOR_RESET} " "$readable_time"
+          ;;
+        "compact")
+          local readable_time
+          readable_time=$(date -d "@$timestamp" "+%m-%d %H:%M" 2>/dev/null || echo "unknown")
+          printf "${BC_COLOR_GREEN}%s${BC_COLOR_RESET} " "$readable_time"
+          ;;
+        "timestamps")
+          printf "${BC_COLOR_GREEN}%s${BC_COLOR_RESET} " "$timestamp"
+          ;;
+      esac
+    else
+      # This is a command line
+      printf "${BC_COLOR_BLUE}%3d${BC_COLOR_RESET}: %s\n" "$((count - commands_shown))" "$line"
+      ((commands_shown++))
+      
+      # Stop when we've shown enough commands
+      if ((commands_shown >= count)); then
+        break
+      fi
+    fi
+  done | tac  # Reverse again to show in chronological order
 }
 
 # ==============================================================================
@@ -155,10 +253,32 @@ clean_history() {
   if [[ -f "$HISTFILE" ]]; then
     local temp_file
     temp_file=$(mktemp)
-    # Remove duplicates while preserving order and timestamps
-    awk '!seen[$0]++' "$HISTFILE" > "$temp_file"
+    
+    bc_log_info "Cleaning history file (preserving timestamps)..."
+    
+    # More sophisticated deduplication that preserves timestamp-command pairs
+    awk '
+    /^#[0-9]+$/ { 
+      # This is a timestamp - store it
+      timestamp = $0
+      next
+    }
+    {
+      # This is a command - check if we have seen this timestamp+command combo
+      combo = timestamp "\n" $0
+      if (!seen[combo]++) {
+        print timestamp
+        print $0
+      }
+    }
+    ' "$HISTFILE" > "$temp_file"
+    
+    local old_count new_count
+    old_count=$(grep -v '^#' "$HISTFILE" | wc -l)
+    new_count=$(grep -v '^#' "$temp_file" | wc -l)
+    
     mv "$temp_file" "$HISTFILE"
-    bc_log_success "History cleaned - duplicates removed"
+    bc_log_success "History cleaned: $old_count → $new_count commands (removed $((old_count - new_count)) duplicates)"
     sync_history
   else
     bc_log_warn "No unified history file to clean"
@@ -179,15 +299,17 @@ bc_history_stats() {
     local total_commands
     local unique_commands
     
-    total_commands=$(wc -l < "$HISTFILE")
-    unique_commands=$(cut -d' ' -f4- "$HISTFILE" | sort | uniq | wc -l)
+    # Filter out timestamp lines (starting with #) when counting
+    total_commands=$(grep -v '^#' "$HISTFILE" | wc -l)
+    unique_commands=$(grep -v '^#' "$HISTFILE" | sort | uniq | wc -l)
     
     echo -e "  ${BC_COLOR_BLUE}Total commands:${BC_COLOR_RESET} $total_commands"
     echo -e "  ${BC_COLOR_BLUE}Unique commands:${BC_COLOR_RESET} $unique_commands"
     echo -e "  ${BC_COLOR_BLUE}History file:${BC_COLOR_RESET} $HISTFILE"
     
     echo -e "\n${BC_COLOR_YELLOW}Top 10 commands:${BC_COLOR_RESET}"
-    cut -d' ' -f4- "$HISTFILE" | awk '{print $1}' | sort | uniq -c | sort -rn | head -10 | \
+    # Filter out timestamps and extract just the first word of each command
+    grep -v '^#' "$HISTFILE" | awk '{print $1}' | sort | uniq -c | sort -rn | head -10 | \
       awk '{printf "  %s%-20s%s %s\n", "'${BC_COLOR_GREEN}'", $2, "'${BC_COLOR_RESET}'", $1}'
   else
     echo -e "  ${BC_COLOR_YELLOW}Using local history only${BC_COLOR_RESET}"
@@ -209,10 +331,53 @@ bc_history_search() {
   
   if [[ -f "$HISTFILE" ]]; then
     echo -e "${BC_COLOR_CYAN}🔍 History search results for: ${BC_COLOR_YELLOW}$query${BC_COLOR_RESET}"
-    grep -n -i -A"$context" -B"$context" "$query" "$HISTFILE" | \
-      sed "s/$query/${BC_COLOR_RED}&${BC_COLOR_RESET}/gi"
+    echo -e "${BC_COLOR_YELLOW}Context: $context lines before/after${BC_COLOR_RESET}\n"
+    
+    # Use a more sophisticated approach to handle timestamps in context
+    local current_timestamp=""
+    local line_num=1
+    local lines=()
+    local match_lines=()
+    
+    # First pass: read all lines and find matches
+    while IFS= read -r line; do
+      if [[ "$line" =~ ^#([0-9]+)$ ]]; then
+        current_timestamp="${BASH_REMATCH[1]}"
+        lines+=("TIMESTAMP:$current_timestamp")
+      else
+        if echo "$line" | grep -qi "$query"; then
+          match_lines+=($line_num)
+        fi
+        lines+=("COMMAND:$line_num:$line")
+        ((line_num++))
+      fi
+    done < "$HISTFILE"
+    
+    # Second pass: display matches with context
+    for match_line in "${match_lines[@]}"; do
+      local start=$((match_line - context))
+      local end=$((match_line + context))
+      [[ $start -lt 1 ]] && start=1
+      
+      for ((i=start; i<=end && i<=${#lines[@]}; i++)); do
+        local entry="${lines[$((i-1))]}"
+        if [[ "$entry" =~ ^TIMESTAMP:([0-9]+)$ ]]; then
+          local ts="${BASH_REMATCH[1]}"
+          local readable_time
+          readable_time=$(date -d "@$ts" "+%m-%d %H:%M:%S" 2>/dev/null || echo "unknown")
+          echo -e "  ${BC_COLOR_GREEN}$readable_time${BC_COLOR_RESET}"
+        elif [[ "$entry" =~ ^COMMAND:([0-9]+):(.*)$ ]]; then
+          local cmd_line="${BASH_REMATCH[1]}"
+          local cmd_text="${BASH_REMATCH[2]}"
+          local highlighted_line
+          highlighted_line=$(echo "$cmd_text" | sed "s/$query/${BC_COLOR_RED}&${BC_COLOR_RESET}/gi")
+          echo -e "  ${BC_COLOR_BLUE}$cmd_line${BC_COLOR_RESET}: $highlighted_line"
+        fi
+      done
+      echo ""  # Blank line between matches
+    done
   else
-    history | grep -i "$query"
+    history | grep -i --color=auto "$query"
   fi
 }
 
@@ -278,8 +443,9 @@ preserved across sessions.
 
 📍 QUICK START COMMANDS
   hhelp          Show this help (you're reading it now!)
-  hstats         Display comprehensive history statistics
-  hr [N]         Show recent N commands (default: 20)
+  hstats         Display comprehensive history statistics (timestamp-aware)
+  hr [N]         Show recent N commands with readable timestamps
+  hrf [N] [fmt]  Show recent commands with format: compact/full/timestamps  
   hg <pattern>   Search history for pattern with colored output
   hs             Manually sync history across sessions
 
@@ -333,10 +499,11 @@ preserved across sessions.
   - File corruption? Import from backup: himport <backup_file>
 
 💡 PRO TIPS
-  - Use 'hr' instead of 'history' to see unified history
+  - Use 'hr' instead of 'history' to see unified history with nice timestamps
+  - Use 'hrf 10 full' for detailed timestamp format
   - Search is case-insensitive and supports regex patterns  
   - History survives SSH disconnections and machine restarts
-  - Commands are timestamped for easy chronological tracking
+  - Statistics now properly exclude timestamp lines from command counts
   - Use 'hsearch' with context for debugging complex workflows
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -350,10 +517,11 @@ EOF
 hquick() {
   cat << 'EOF'
 ┌─ HISTORY QUICK REFERENCE ─────────────────────────────────────────────────┐
-│ hhelp      Full help system       │ hr [N]     Recent N commands         │
-│ hstats     Usage statistics       │ hg <pat>   Search for pattern        │
-│ hs         Manual sync            │ hc         Clean duplicates          │
-│ hbackup    Create backup          │ himport    Import history            │
+│ hhelp      Full help system       │ hr [N]     Recent N commands          │
+│ hstats     Usage statistics       │ hg <pat>   Search for pattern         │
+│ hs         Manual sync            │ hc         Clean duplicates           │
+│ hbackup    Create backup          │ himport    Import history             │
+│ hrf [N] [fmt]  Formatted recent   │ hsearch    Advanced search            │
 └───────────────────────────────────────────────────────────────────────────┘
 EOF
 }
@@ -369,6 +537,7 @@ EOF
 alias hs='sync_history'           # Manual sync
 alias hg='hgrep'                  # Quick search
 alias hr='recent_history'         # Recent commands  
+alias hrf='hr_formatted'          # Recent commands with formatting options
 alias hc='clean_history'          # Clean duplicates
 alias hstats='bc_history_stats'   # Statistics
 alias hsearch='bc_history_search' # Advanced search
