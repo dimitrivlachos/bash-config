@@ -158,9 +158,9 @@ hgrep() {
       else
         # This is a command line - check if it matches our pattern
         if echo "$line" | grep -q "$pattern"; then
-          # Highlight the matching pattern
+          # Highlight the matching pattern using printf to properly expand color variables
           local highlighted_line
-          highlighted_line=$(echo "$line" | sed "s/$pattern/${BC_COLOR_RED}&${BC_COLOR_RESET}/g")
+          highlighted_line=$(echo "$line" | sed "s/$pattern/$(printf '\033[0;31m')&$(printf '\033[0m')/g")
           echo -e "${BC_COLOR_GREEN}$current_timestamp${BC_COLOR_RESET} ${BC_COLOR_BLUE}$line_num${BC_COLOR_RESET}: $highlighted_line"
         fi
         ((line_num++))
@@ -392,7 +392,7 @@ bc_history_search() {
           local cmd_line="${BASH_REMATCH[1]}"
           local cmd_text="${BASH_REMATCH[2]}"
           local highlighted_line
-          highlighted_line=$(echo "$cmd_text" | sed "s/$query/${BC_COLOR_RED}&${BC_COLOR_RESET}/gi")
+          highlighted_line=$(echo "$cmd_text" | sed "s/$query/$(printf '\033[0;31m')&$(printf '\033[0m')/gi")
           echo -e "  ${BC_COLOR_BLUE}$cmd_line${BC_COLOR_RESET}: $highlighted_line"
         fi
       done
