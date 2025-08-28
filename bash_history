@@ -137,19 +137,59 @@ trap 'bc_history_exit_sync' EXIT
 # Searches through the unified history file and displays results with
 # line numbers and colored formatting for easy identification.
 hgrep() {
-  local pattern="$1"
+  local pattern=""
+  local max_results=10
+  local show_all=false
+  
+  # Parse arguments
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --show-all)
+        show_all=true
+        shift
+        ;;
+      -*)
+        bc_log_error "Unknown option: $1"
+        bc_log_info "Usage: hgrep <pattern> [count] [--show-all]"
+        return 1
+        ;;
+      *)
+        if [[ -z "$pattern" ]]; then
+          pattern="$1"
+        elif [[ "$1" =~ ^[0-9]+$ ]]; then
+          max_results="$1"
+        else
+          bc_log_error "Invalid argument: $1"
+          bc_log_info "Usage: hgrep <pattern> [count] [--show-all]"
+          return 1
+        fi
+        shift
+        ;;
+    esac
+  done
+  
   if [[ -z "$pattern" ]]; then
-    bc_log_error "Usage: hgrep <pattern>"
+    bc_log_error "Usage: hgrep <pattern> [count] [--show-all]"
+    bc_log_info "Examples:"
+    bc_log_info "  hg spotfinder        # Show last 10 matches"
+    bc_log_info "  hg spotfinder 20     # Show last 20 matches"  
+    bc_log_info "  hg spotfinder --show-all  # Show all matches"
     return 1
   fi
   
   # Search in unified history with proper timestamp handling
   if [[ -f "$HISTFILE" ]]; then
-    echo -e "${BC_COLOR_CYAN}🔍 Search results for: ${BC_COLOR_YELLOW}$pattern${BC_COLOR_RESET}"
+    if [[ "$show_all" == true ]]; then
+      echo -e "${BC_COLOR_CYAN}🔍 All search results for: ${BC_COLOR_YELLOW}$pattern${BC_COLOR_RESET}"
+    else
+      echo -e "${BC_COLOR_CYAN}🔍 Last $max_results search results for: ${BC_COLOR_YELLOW}$pattern${BC_COLOR_RESET}"
+    fi
     
     local current_timestamp=""
     local line_num=1
+    local matches=()
     
+    # First pass: collect all matches
     while IFS= read -r line; do
       if [[ "$line" =~ ^#([0-9]+)$ ]]; then
         # This is a timestamp line
@@ -161,14 +201,48 @@ hgrep() {
           # Highlight the matching pattern using printf to properly expand color variables
           local highlighted_line
           highlighted_line=$(echo "$line" | sed "s/$pattern/$(printf '\033[0;31m')&$(printf '\033[0m')/g")
-          echo -e "${BC_COLOR_GREEN}$current_timestamp${BC_COLOR_RESET} ${BC_COLOR_BLUE}$line_num${BC_COLOR_RESET}: $highlighted_line"
+          matches+=("${BC_COLOR_GREEN}$current_timestamp${BC_COLOR_RESET} ${BC_COLOR_BLUE}$line_num${BC_COLOR_RESET}: $highlighted_line")
         fi
         ((line_num++))
       fi
     done < "$HISTFILE"
+    
+    # Display results (most recent first if limited)
+    local total_matches=${#matches[@]}
+    if [[ $total_matches -eq 0 ]]; then
+      echo -e "${BC_COLOR_YELLOW}No matches found${BC_COLOR_RESET}"
+      return 0
+    fi
+    
+    if [[ "$show_all" == true ]]; then
+      # Show all matches in chronological order
+      for match in "${matches[@]}"; do
+        echo -e "$match"
+      done
+      echo -e "${BC_COLOR_CYAN}Total: $total_matches matches${BC_COLOR_RESET}"
+    else
+      # Show only the most recent N matches
+      local start_idx=$((total_matches - max_results))
+      [[ $start_idx -lt 0 ]] && start_idx=0
+      
+      for ((i=start_idx; i<total_matches; i++)); do
+        echo -e "${matches[i]}"
+      done
+      
+      if [[ $total_matches -gt $max_results ]]; then
+        echo -e "${BC_COLOR_YELLOW}Showing last $max_results of $total_matches matches${BC_COLOR_RESET}"
+        echo -e "${BC_COLOR_GRAY}Use 'hg $pattern --show-all' to see all matches${BC_COLOR_RESET}"
+      else
+        echo -e "${BC_COLOR_CYAN}Total: $total_matches matches${BC_COLOR_RESET}"
+      fi
+    fi
   else
     bc_log_warn "Unified history file not found"
-    history | grep --color=auto "$pattern"
+    if [[ "$show_all" == true ]]; then
+      history | grep --color=auto "$pattern"
+    else
+      history | grep --color=auto "$pattern" | tail -n "$max_results"
+    fi
   fi
 }
 
@@ -473,11 +547,15 @@ preserved across sessions.
   hs             Manually sync history across sessions
 
 🔍 SEARCH COMMANDS
-  hg <pattern>              Quick search with line numbers
+  hg <pattern>              Quick search (shows last 10 matches by default)
+  hg <pattern> [count]      Show last N matches
+  hg <pattern> --show-all   Show all matches
   hsearch <pattern> [ctx]   Advanced search with context lines
   
   Examples:
-    hg "git commit"         Find all git commit commands
+    hg "git commit"         Find last 10 git commit commands
+    hg "git commit" 5       Find last 5 git commit commands
+    hg "git commit" --show-all  Find all git commit commands
     hsearch "python" 5      Find python commands with 5 lines context
 
 📊 ANALYSIS & MAINTENANCE
