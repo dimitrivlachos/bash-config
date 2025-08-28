@@ -48,7 +48,7 @@ set_prompt() {
     branch="$(parse_git_branch)"
     dir="\W"
     [[ "$DIR_LENGTH" == "long" ]] && dir="\w"
-    PS1="${venv}[${USER_COLOR}\u${RESET_COLOR}@${HOST_COLOR}$(map_hostname "$(hostname)")${RESET_COLOR}:${DIR_COLOR}${dir}${RESET_COLOR}${branch}]\$ "
+    PS1="${venv}[${USER_COLOR}\u${RESET_COLOR}@${HOST_COLOR}$(map_hostname "${HOSTNAME:-$(uname -n)}")${RESET_COLOR}:${DIR_COLOR}${dir}${RESET_COLOR}${branch}]\$ "
 }
 
 # Toggles
