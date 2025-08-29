@@ -133,15 +133,16 @@ trap 'bc_history_exit_sync' EXIT
 # SEARCH AND RETRIEVAL FUNCTIONS
 # ==============================================================================
 
-# Advanced history search with colored output
+# Advanced history search with colored output (gawk-optimized)
 # Searches through the unified history file and displays results with
 # line numbers and colored formatting for easy identification.
+# Usage: hgrep <pattern> [count] [--show-all]
 hgrep() {
   local pattern=""
   local max_results=10
   local show_all=false
-  
-  # Parse arguments
+
+  # Parse arguments (order-insensitive)
   while [[ $# -gt 0 ]]; do
     case $1 in
       --show-all)
@@ -167,81 +168,127 @@ hgrep() {
         ;;
     esac
   done
-  
+
   if [[ -z "$pattern" ]]; then
     bc_log_error "Usage: hgrep <pattern> [count] [--show-all]"
     bc_log_info "Examples:"
     bc_log_info "  hg spotfinder        # Show last 10 matches"
-    bc_log_info "  hg spotfinder 20     # Show last 20 matches"  
+    bc_log_info "  hg spotfinder 20     # Show last 20 matches"
     bc_log_info "  hg spotfinder --show-all  # Show all matches"
     return 1
   fi
-  
-  # Search in unified history with proper timestamp handling
+
+  # If we have a unified history file, search using gawk/awk, preferring a fast gawk pass
   if [[ -f "$HISTFILE" ]]; then
     if [[ "$show_all" == true ]]; then
       echo -e "${BC_COLOR_CYAN}🔍 All search results for: ${BC_COLOR_YELLOW}$pattern${BC_COLOR_RESET}"
     else
       echo -e "${BC_COLOR_CYAN}🔍 Last $max_results search results for: ${BC_COLOR_YELLOW}$pattern${BC_COLOR_RESET}"
     fi
-    
-    local current_timestamp=""
-    local line_num=1
-    local matches=()
-    
-    # First pass: collect all matches
-    while IFS= read -r line; do
-      if [[ "$line" =~ ^#([0-9]+)$ ]]; then
-        # This is a timestamp line
-        local timestamp="${BASH_REMATCH[1]}"
-        current_timestamp=$(bc_format_timestamp "$timestamp" "compact")
-      else
-        # This is a command line - check if it matches our pattern
-        if echo "$line" | grep -q "$pattern"; then
-          # Highlight the matching pattern using printf to properly expand color variables
-          local highlighted_line
-          highlighted_line=$(echo "$line" | sed "s/$pattern/$(printf '\033[0;31m')&$(printf '\033[0m')/g")
-          matches+=("${BC_COLOR_GREEN}$current_timestamp${BC_COLOR_RESET} ${BC_COLOR_BLUE}$line_num${BC_COLOR_RESET}: $highlighted_line")
-        fi
-        ((line_num++))
-      fi
-    done < "$HISTFILE"
-    
-    # Display results (most recent first if limited)
-    local total_matches=${#matches[@]}
-    if [[ $total_matches -eq 0 ]]; then
-      echo -e "${BC_COLOR_YELLOW}No matches found${BC_COLOR_RESET}"
-      return 0
-    fi
-    
-    if [[ "$show_all" == true ]]; then
-      # Show all matches in chronological order
-      for match in "${matches[@]}"; do
-        echo -e "$match"
-      done
-      echo -e "${BC_COLOR_CYAN}Total: $total_matches matches${BC_COLOR_RESET}"
+
+    # Choose awk implementation: prefer gawk for gensub/strftime support
+    local awk_bin=""
+    if command -v gawk >/dev/null 2>&1; then
+      awk_bin=gawk
+    elif command -v awk >/dev/null 2>&1; then
+      awk_bin=awk
     else
-      # Show only the most recent N matches
-      local start_idx=$((total_matches - max_results))
-      [[ $start_idx -lt 0 ]] && start_idx=0
-      
+      bc_log_error "No awk/gawk available on PATH"
+      return 1
+    fi
+
+    # If gawk is available, use a single-pass implementation that collects
+    # matches, highlights them, and prints only the most recent N (or all).
+    if [[ "$awk_bin" == "gawk" ]]; then
+      # Pass color escape sequences via -v to avoid shell interpolation issues
+      gawk -v pat="$pattern" -v max="$max_results" -v showall="$show_all" \
+           -v red="$(printf '\033[0;31m')" \
+           -v green="$(printf '\033[0;32m')" \
+           -v blue="$(printf '\033[0;34m')" \
+           -v reset="$(printf '\033[0m')" \
+           'BEGIN { IGNORECASE=1; m=0; ts="" }
+      {
+        if ($0 ~ /^#([0-9]+)$/) {
+          ts = substr($0,2)
+          # format timestamp to mm-dd HH:MM
+          ts_fmt = strftime("%m-%d %H:%M", ts)
+          next
+        }
+        if ($0 ~ pat) {
+          m++
+          highlighted = gensub(pat, red "&" reset, "g", $0)
+          # color timestamp and line-number
+          matches[m] = green ts_fmt reset " " blue m reset ": " highlighted
+        }
+      }
+      END {
+        if (m == 0) {
+          printf "\033[33mNo matches found\033[0m\n"
+          exit
+        }
+        if (showall == "true") {
+          for (i = 1; i <= m; i++) print matches[i]
+          printf "\033[36mTotal: %d matches\033[0m\n", m
+        } else {
+          start = m - max + 1
+          if (start < 1) start = 1
+          for (i = start; i <= m; i++) print matches[i]
+          if (m > max) {
+            printf "\033[33mShowing last %d of %d matches\033[0m\n", max, m
+            printf "\033[37mUse '--show-all' to see all matches\033[0m\n"
+          } else {
+            printf "\033[36mTotal: %d matches\033[0m\n", m
+          }
+        }
+      }' "$HISTFILE"
+
+    else
+      # Fallback for non-gawk awk: use grep to find matches, then limit and highlight
+      # This is less efficient but avoids complex awk compatibility issues.
+      if [[ "$show_all" == true ]]; then
+        mapfile -t raw_matches < <(grep -i -n -- "$pattern" "$HISTFILE" 2>/dev/null || true)
+      else
+        mapfile -t raw_matches < <(grep -i -n -- "$pattern" "$HISTFILE" 2>/dev/null || true)
+      fi
+
+      local total_matches=${#raw_matches[@]}
+      if [[ $total_matches -eq 0 ]]; then
+        echo -e "${BC_COLOR_YELLOW}No matches found${BC_COLOR_RESET}"
+        return 0
+      fi
+
+      # Determine which slice to show
+      local start_idx=0
+      if [[ "$show_all" != true && $total_matches -gt $max_results ]]; then
+        start_idx=$(( total_matches - max_results ))
+      fi
+
       for ((i=start_idx; i<total_matches; i++)); do
-        echo -e "${matches[i]}"
+        # raw_matches elements are 'linenumber:line'
+        local raw="${raw_matches[i]}"
+        local lineno="${raw%%:*}"
+        local line_only="${raw#*:}"
+        # highlight using sed (case-insensitive)
+        local highlighted
+        highlighted=$(printf '%s' "$line_only" | sed -E "s/($pattern)/$(printf '%b' '\\\033[0;31m')\\1$(printf '%b' '\\\033[0m')/Ig")
+        # Print colored line number + highlighted text
+        echo -e "${BC_COLOR_BLUE}${lineno}${BC_COLOR_RESET}: $highlighted"
       done
-      
-      if [[ $total_matches -gt $max_results ]]; then
+
+      if [[ "$show_all" != true && $total_matches -gt $max_results ]]; then
         echo -e "${BC_COLOR_YELLOW}Showing last $max_results of $total_matches matches${BC_COLOR_RESET}"
-        echo -e "${BC_COLOR_GRAY}Use 'hg $pattern --show-all' to see all matches${BC_COLOR_RESET}"
+        echo -e "${BC_COLOR_GRAY}Use '--show-all' to see all matches${BC_COLOR_RESET}"
       else
         echo -e "${BC_COLOR_CYAN}Total: $total_matches matches${BC_COLOR_RESET}"
       fi
     fi
+
   else
     bc_log_warn "Unified history file not found"
     if [[ "$show_all" == true ]]; then
-      history | grep --color=auto "$pattern"
+      history | grep -i --color=auto -- "$pattern"
     else
-      history | grep --color=auto "$pattern" | tail -n "$max_results"
+      history | grep -i --color=auto -- "$pattern" | tail -n "$max_results"
     fi
   fi
 }
