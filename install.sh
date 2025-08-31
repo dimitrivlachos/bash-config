@@ -14,7 +14,7 @@ TARGET_BASHRC="${2:-$DEFAULT_TARGET}"
 # Prompt for specialisation if not provided
 if [[ -z "$SPECIALISATION" ]]; then
   echo "Which specialisation are you setting up?"
-  select SPECIALISATION in "frostpaw" "diamond"; do
+  select SPECIALISATION in "frostpaw" "diamond" "asteria"; do
     [[ -n "$SPECIALISATION" ]] && break
   done
 fi

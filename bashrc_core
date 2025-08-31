@@ -44,7 +44,7 @@ bc_source_if_exists "$BASH_CONFIG_DIR/bash_history" "History management"
 if [[ -n "${BASH_SPECIALISATION:-}" ]]; then
   spec_file="$BASH_CONFIG_DIR/specialisations/bashrc_$BASH_SPECIALISATION"
   case "$BASH_SPECIALISATION" in
-    frostpaw|diamond)
+    frostpaw|diamond|asteria)
       if [[ -f "$spec_file" ]]; then
         source "$spec_file"
         # echo "[INFO] Loaded specialisation: $BASH_SPECIALISATION" >&2
@@ -54,7 +54,7 @@ if [[ -n "${BASH_SPECIALISATION:-}" ]]; then
       ;;
     *)
       echo "[ERROR] Unknown specialisation: $BASH_SPECIALISATION" >&2
-      echo "[INFO] Available specialisations: frostpaw, diamond" >&2
+      echo "[INFO] Available specialisations: frostpaw, diamond, asteria" >&2
       ;;
   esac
 fi

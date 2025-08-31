@@ -1,0 +1,168 @@
+# Raspberry Pi / Home Server specific configuration
+
+# Use Raspberry Pi OS default color scheme 
+# Set prompt style to use Pi's nice green/blue colors
+export BASH_PROMPT_STYLE="pi"
+
+# Package management (Raspberry Pi OS/Debian)
+alias update='sudo apt update && sudo apt upgrade'
+alias cleanup='sudo apt autoremove && sudo apt autoclean'
+alias full-update='update && cleanup'
+
+# Docker shortcuts
+alias dps='docker ps'
+alias dpsa='docker ps -a'
+alias dlog='docker logs -f'
+alias dup='docker-compose up -d'
+alias ddown='docker-compose down'
+alias dstop='docker stop $(docker ps -q)'
+alias drm='docker rm $(docker ps -aq)'
+alias dprune='docker system prune -f'
+alias dimages='docker images'
+
+# System monitoring for Pi
+alias temp='vcgencmd measure_temp'  # Pi-specific temperature check
+alias throttle='vcgencmd get_throttled'  # Check throttling status
+alias voltage='vcgencmd measure_volts'  # Check power supply
+alias mem='vcgencmd get_mem arm gpu'  # Memory split info
+
+# Service management
+alias services='sudo systemctl status'
+alias logs='sudo journalctl -f'
+alias restart-service='sudo systemctl restart'
+alias enable-service='sudo systemctl enable'
+alias disable-service='sudo systemctl disable'
+
+# Network monitoring
+alias ports='sudo netstat -tulpn'
+alias iptables-list='sudo iptables -L -n -v'
+alias connections='sudo ss -tulpn'
+
+# Home server shortcuts
+alias htop='htop'
+alias iotop='sudo iotop'
+alias disk-usage='df -h'
+alias free-mem='free -h'
+
+# Set fastfetch config for Pi
+export FASTFETCH_CONFIG="$BASH_CONFIG_DIR/configs/fastfetch_asteria.jsonc"
+
+# Smart fastfetch update function
+update-fastfetch() {
+    echo "Checking fastfetch versions..."
+    
+    # Check if fastfetch is installed
+    if ! command -v fastfetch &>/dev/null; then
+        echo "Fastfetch not installed. Installing latest version..."
+        local install_latest=true
+    else
+        # Get current version
+        local current_version=$(fastfetch --version 2>/dev/null | head -n1 | grep -oP '\d+\.\d+\.\d+' | head -n1)
+        
+        # Get latest version from GitHub API
+        local latest_version=$(curl -s https://api.github.com/repos/fastfetch-cli/fastfetch/releases/latest | grep -oP '"tag_name": "\K[^"]*' | sed 's/^v//')
+        
+        if [[ -z "$current_version" || -z "$latest_version" ]]; then
+            echo "Could not determine versions. Installing anyway..."
+            local install_latest=true
+        elif [[ "$current_version" == "$latest_version" ]]; then
+            echo "Fastfetch is already up to date (v$current_version)"
+            return 0
+        else
+            echo "Current version: v$current_version"
+            echo "Latest version:  v$latest_version"
+            echo "Updating fastfetch..."
+            local install_latest=true
+        fi
+    fi
+    
+    if [[ "$install_latest" == "true" ]]; then
+        # Download latest ARM64 release to /tmp (gets cleared on reboot)
+        local temp_file="/tmp/fastfetch-latest-$(date +%s).deb"
+        local latest_url=$(curl -s https://api.github.com/repos/fastfetch-cli/fastfetch/releases/latest | grep "browser_download_url.*linux-aarch64.deb" | cut -d '"' -f 4)
+        
+        if [[ -z "$latest_url" ]]; then
+            echo "Could not find download URL. Aborting."
+            return 1
+        fi
+        
+        echo "Downloading fastfetch..."
+        if wget -q -O "$temp_file" "$latest_url"; then
+            echo "Installing fastfetch..."
+            sudo dpkg -i "$temp_file"
+            sudo apt install -f -qq
+            rm -f "$temp_file"
+            echo "Fastfetch updated successfully!"
+            
+            # Show new version
+            local new_version=$(fastfetch --version 2>/dev/null | head -n1 | grep -oP '\d+\.\d+\.\d+' | head -n1)
+            [[ -n "$new_version" ]] && echo "New version: v$new_version"
+        else
+            echo "Download failed. Cleaning up..."
+            rm -f "$temp_file"
+            return 1
+        fi
+    fi
+}
+
+# Enhanced update aliases
+alias full-update='update && cleanup && update-fastfetch'
+alias update-all='full-update'
+
+# Asteria help function
+asteria-help() {
+    echo -e "\n\033[1;32m🍓 Asteria (Raspberry Pi) Commands:\033[0m"
+    echo
+    echo -e "\033[1;33mPackage Management:\033[0m"
+    echo "  update          - Update package lists and upgrade all packages"
+    echo "  cleanup         - Remove unused packages and clean package cache"
+    echo "  full-update     - Complete system update (update + cleanup + fastfetch)"
+    echo "  update-all      - Alias for full-update"
+    echo "  update-fastfetch- Check and update fastfetch to latest version"
+    echo
+    echo -e "\033[1;34mDocker Commands:\033[0m"
+    echo "  dps             - Show running containers (docker ps)"
+    echo "  dpsa            - Show all containers (docker ps -a)"
+    echo "  dlog            - Follow container logs (docker logs -f)"
+    echo "  dup             - Start services (docker-compose up -d)"
+    echo "  ddown           - Stop services (docker-compose down)"
+    echo "  dstop           - Stop all running containers"
+    echo "  drm             - Remove all containers"
+    echo "  dprune          - Clean up Docker system"
+    echo "  dimages         - List Docker images"
+    echo
+    echo -e "\033[1;35mPi System Monitoring:\033[0m"
+    echo "  temp            - Show CPU temperature"
+    echo "  throttle        - Check throttling status"
+    echo "  voltage         - Check power supply voltage"
+    echo "  mem             - Show GPU/ARM memory split"
+    echo "  htop            - Interactive process viewer"
+    echo "  iotop           - I/O usage monitor (requires sudo)"
+    echo "  disk-usage      - Show disk space usage"
+    echo "  free-mem        - Show memory usage"
+    echo
+    echo -e "\033[1;36mService Management:\033[0m"
+    echo "  services        - Show systemd service status"
+    echo "  logs            - Follow system logs"
+    echo "  restart-service - Restart a systemd service"
+    echo "  enable-service  - Enable a systemd service"
+    echo "  disable-service - Disable a systemd service"
+    echo
+    echo -e "\033[1;37mNetwork Monitoring:\033[0m"
+    echo "  ports           - Show open ports and listening services"
+    echo "  iptables-list   - Show firewall rules"
+    echo "  connections     - Show network connections"
+    echo
+    echo -e "\033[1;90mOther:\033[0m"
+    echo "  asteria-help    - Show this help message"
+    echo "  ph              - Prompt customization help"
+    echo
+}
+
+# Alias for convenience
+alias ah='asteria-help'
+
+# Pi-specific environment variables (examples - uncomment/modify as needed)
+# export PI_USER="pi"
+# export SERVER_DIR="/home/pi/servers"
+# export DOCKER_COMPOSE_DIR="/home/pi/docker-compose"
