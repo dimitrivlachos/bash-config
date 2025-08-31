@@ -26,6 +26,12 @@ alias throttle='vcgencmd get_throttled'  # Check throttling status
 alias voltage='vcgencmd measure_volts'  # Check power supply
 alias mem='vcgencmd get_mem arm gpu'  # Memory split info
 
+# Watch temperature with optional interval (defaults to 2 seconds)
+watch-temp() {
+    local interval="${1:-2}"
+    watch -n "$interval" 'vcgencmd measure_temp'
+}
+
 # Service management
 alias services='sudo systemctl status'
 alias logs='sudo journalctl -f'
@@ -133,6 +139,7 @@ asteria-help() {
     echo
     echo -e "\033[1;35mPi System Monitoring:\033[0m"
     echo "  temp            - Show CPU temperature"
+    echo "  watch-temp      - Watch temperature updates (default 2s, custom: watch-temp 1)"
     echo "  throttle        - Check throttling status"
     echo "  voltage         - Check power supply voltage"
     echo "  mem             - Show GPU/ARM memory split"
