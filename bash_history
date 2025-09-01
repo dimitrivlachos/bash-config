@@ -214,6 +214,14 @@ hgrep() {
           ts_fmt = strftime("%m-%d %H:%M", ts)
           next
         }
+        # Skip history-related commands that would show up in search (unless showing all)
+        if (showall != "true" && 
+            ($0 ~ /^(hg|hgrep|hr|hs|hstats|hc|hhelp|hquick|hrf|hsearch|hbackup|himport|history)\s/ || 
+             $0 ~ /history\s*\|\s*grep/ || 
+             $0 ~ /^bc_history_/ ||
+             $0 == "history")) {
+          next
+        }
         if ($0 ~ pat) {
           m++
           highlighted = gensub(pat, red "&" reset, "g", $0)
@@ -243,12 +251,15 @@ hgrep() {
       }' "$HISTFILE"
 
     else
-      # Fallback for non-gawk awk: use grep to find matches, then limit and highlight
-      # This is less efficient but avoids complex awk compatibility issues.
+      # Fallback for non-gawk awk: use grep to find matches, then filter and limit
       if [[ "$show_all" == true ]]; then
         mapfile -t raw_matches < <(grep -i -n -- "$pattern" "$HISTFILE" 2>/dev/null || true)
       else
-        mapfile -t raw_matches < <(grep -i -n -- "$pattern" "$HISTFILE" 2>/dev/null || true)
+        mapfile -t raw_matches < <(grep -i -n -- "$pattern" "$HISTFILE" 2>/dev/null | \
+          grep -v -E "^[0-9]+:(hg|hgrep|hr|hs|hstats|hc|hhelp|hquick|hrf|hsearch|hbackup|himport|history)\s" | \
+          grep -v -E "^[0-9]+:history\s*\|\s*grep" | \
+          grep -v -E "^[0-9]+:bc_history_" | \
+          grep -v -E "^[0-9]+:history$" || true)
       fi
 
       local total_matches=${#raw_matches[@]}
@@ -288,7 +299,9 @@ hgrep() {
     if [[ "$show_all" == true ]]; then
       history | grep -i --color=auto -- "$pattern"
     else
-      history | grep -i --color=auto -- "$pattern" | tail -n "$max_results"
+      history | grep -i --color=auto -- "$pattern" | \
+        grep -v -E "\s(hg|hgrep|hr|hs|hstats|hc|hhelp|hquick|hrf|hsearch|hbackup|himport|history)\s" | \
+        grep -v -E "history\s*\|\s*grep" | tail -n "$max_results"
     fi
   fi
 }
