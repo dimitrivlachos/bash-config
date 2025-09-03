@@ -1,0 +1,126 @@
+# SSH Management Functions and Configuration
+
+# SSH configuration management via symlink to secrets
+bc_setup_ssh_config() {
+    local ssh_dir="$HOME/.ssh"
+    local config_file="$ssh_dir/config"
+    local secrets_ssh_config="$BASH_CONFIG_DIR/secrets/ssh_config"
+    local backup_suffix=".backup.$(date +%Y%m%d_%H%M%S)"
+    
+    # Ensure SSH directory exists
+    mkdir -p "$ssh_dir"
+    chmod 700 "$ssh_dir"
+    
+    # Check if secrets SSH config exists
+    if [[ ! -f "$secrets_ssh_config" ]]; then
+        bc_log_error "SSH config not found in secrets: $secrets_ssh_config"
+        return 1
+    fi
+    
+    # Check if already correctly configured
+    if bc_check_ssh_config silent >/dev/null 2>&1; then
+        bc_log_info "SSH config already correctly configured"
+        return 0
+    fi
+    
+    # Handle existing config file
+    if [[ -L "$config_file" ]]; then
+        local current_target=$(readlink "$config_file")
+        bc_log_info "Removing existing symlink (pointed to: $current_target)"
+        rm "$config_file"
+    elif [[ -f "$config_file" ]]; then
+        mv "$config_file" "${config_file}${backup_suffix}"
+        bc_log_info "Backed up existing SSH config to: ${config_file}${backup_suffix}"
+    fi
+    
+    # Create symlink and set permissions
+    ln -s "$secrets_ssh_config" "$config_file"
+    chmod 600 "$secrets_ssh_config"
+    bc_log_success "SSH config symlinked to secrets repository"
+}
+
+# SSH config validation helper
+bc_check_ssh_config() {
+    local silent="${1:-false}"
+    local config_file="$HOME/.ssh/config"
+    local secrets_ssh_config="$BASH_CONFIG_DIR/secrets/ssh_config"
+    
+    if [[ ! -f "$secrets_ssh_config" ]]; then
+        [[ "$silent" != "silent" ]] && bc_log_error "SSH config not found in secrets: $secrets_ssh_config"
+        return 1
+    fi
+    
+    if [[ ! -L "$config_file" ]]; then
+        [[ "$silent" != "silent" ]] && bc_log_warn "SSH config is not a symlink to secrets"
+        return 1
+    fi
+    
+    local target=$(readlink "$config_file")
+    if [[ "$target" != "$secrets_ssh_config" ]]; then
+        [[ "$silent" != "silent" ]] && bc_log_warn "SSH config symlink points to wrong location: $target"
+        return 1
+    fi
+    
+    [[ "$silent" != "silent" ]] && bc_log_success "SSH config correctly symlinked to secrets"
+    return 0
+}
+
+# Simple master connection management
+bc_ssh_master_start() {
+    local host="$1"
+    if [[ -z "$host" ]]; then
+        bc_log_error "Usage: bc_ssh_master_start <hostname>"
+        return 1
+    fi
+    
+    bc_log_info "Starting master connection to $host..."
+    if ssh -MNf "$host"; then
+        bc_log_success "Master connection to $host started"
+    else
+        bc_log_error "Failed to start master connection to $host"
+        return 1
+    fi
+}
+
+bc_ssh_master_status() {
+    bc_log_info "Active SSH master connections:"
+    if ls ~/.ssh/cm-* 2>/dev/null | head -1 >/dev/null; then
+        ls -la ~/.ssh/cm-* 2>/dev/null
+    else
+        bc_log_info "No active master connections found"
+    fi
+}
+
+# Daily work setup - this is your main function
+bc_ssh_workday_setup() {
+    bc_log_info "🚀 Setting up SSH for work day..."
+    echo
+    
+    # 1. Validate/setup SSH config
+    bc_log_info "📋 Checking SSH configuration..."
+    if ! bc_check_ssh_config silent; then
+        bc_log_info "Setting up SSH config..."
+        bc_setup_ssh_config || return 1
+    else
+        bc_log_success "SSH config is ready"
+    fi
+    echo
+    
+    # 2. Start master connection to bastion
+    bc_log_info "🏢 Starting bastion master connection..."
+    bc_ssh_master_start bastion
+    echo
+    
+    # 3. Show status
+    bc_log_info "📊 Connection status:"
+    bc_ssh_master_status
+    echo
+    
+    bc_log_success "🎉 Work day SSH setup complete!"
+    bc_log_info "💡 All SSH connections will now use the shared master connection"
+}
+
+# Simple aliases
+alias ssh-setup='bc_ssh_workday_setup'
+alias ssh-status='bc_ssh_master_status'
+alias ssh-master='bc_ssh_master_start'

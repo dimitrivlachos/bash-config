@@ -1,4 +1,6 @@
 secrets/*
 
-# Explicitly un-ingore an example secrets file
+# Explicitly un-ignore example files and documentation
 !secrets/example_secrets.sh
+!secrets/ssh_config.example
+!secrets/README.md

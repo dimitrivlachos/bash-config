@@ -38,6 +38,7 @@ bc_source_if_exists "$BASH_CONFIG_DIR/bash_aliases" "Aliases"
 bc_source_if_exists "$BASH_CONFIG_DIR/bash_exports" "Exports"
 bc_source_if_exists "$BASH_CONFIG_DIR/bash_prompt" "Prompt configuration"
 bc_source_if_exists "$BASH_CONFIG_DIR/bash_tools" "Tools and functions"
+bc_source_if_exists "$BASH_CONFIG_DIR/bash_ssh" "SSH management"
 bc_source_if_exists "$BASH_CONFIG_DIR/bash_history" "History management"
 
 # Load specialisation

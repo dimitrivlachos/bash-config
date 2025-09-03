@@ -285,6 +285,13 @@ bc_validate_config() {
     bc_log_warn "No secrets file (this may be intentional)"
   fi
   
+  # Check SSH configuration
+  if bc_check_ssh_config silent >/dev/null 2>&1; then
+    bc_log_success "SSH config properly configured"
+  else
+    bc_log_warn "SSH config issues detected (run 'ssh-setup' to fix)"
+  fi
+  
   # Check SSH key if set
   if [[ -n "${DIAMOND_GITHUB_KEY:-}" ]]; then
     if [[ -f "$DIAMOND_GITHUB_KEY" ]]; then

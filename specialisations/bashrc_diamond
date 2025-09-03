@@ -22,6 +22,11 @@ if [[ -n "${DIAMOND_GITHUB_KEY:-}" && -f "$DIAMOND_GITHUB_KEY" ]]; then
   bc_setup_ssh_agent "$DIAMOND_GITHUB_KEY"
 fi
 
+# SSH config setup (inform user if not configured)
+if ! bc_check_ssh_config silent >/dev/null 2>&1; then
+    bc_log_info "SSH config not set up, run 'ssh-setup' when ready to connect to work"
+fi
+
 # Hostname mapping
 declare -A HOSTNAME_MAP=(
   ["cs05r-sc-serv-53.diamond.ac.uk"]="i03-gpu"
