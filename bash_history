@@ -38,16 +38,33 @@ shopt -s histappend
 # ==============================================================================
 # UNIFIED HISTORY FILE SETUP
 # ==============================================================================
-# Creates a centralized history file in DIAMOND_WORK_DIR that is shared
-# across all machines you SSH into. This allows seamless command history
-# synchronization across the entire Diamond infrastructure.
+# Creates specialization-aware history files that adapt to your current environment.
+# Diamond specialization uses shared network storage when available, while other
+# specializations use local unified history files.
 
-# Centralized history for Diamond machines
-if [[ -n "${DIAMOND_WORK_DIR:-}" ]]; then
-  export HISTFILE="$DIAMOND_WORK_DIR/.bash_history_unified"
-  # Ensure the history file exists with proper permissions
-  touch "$HISTFILE" 2>/dev/null || true
-fi
+# Specialization-aware unified history
+case "${BC_SPECIALIZATION:-}" in
+  "diamond")
+    if [[ -n "${DIAMOND_WORK_DIR:-}" && -d "$DIAMOND_WORK_DIR" && -w "$DIAMOND_WORK_DIR" ]]; then
+      export HISTFILE="$DIAMOND_WORK_DIR/.bash_history_unified"
+      bc_log_debug "Using Diamond unified history: $HISTFILE"
+    else
+      export HISTFILE="$HOME/.bash_history_diamond"
+      bc_log_debug "Using Diamond local history: $HISTFILE"
+    fi
+    ;;
+  "asteria"|"frostpaw")
+    export HISTFILE="$HOME/.bash_history_${BC_SPECIALIZATION}"
+    bc_log_debug "Using ${BC_SPECIALIZATION} specialization history: $HISTFILE"
+    ;;
+  *)
+    export HISTFILE="$HOME/.bash_history_unified"
+    bc_log_debug "Using default unified history: $HISTFILE"
+    ;;
+esac
+
+# Ensure the history file exists with proper permissions
+touch "$HISTFILE" 2>/dev/null || true
 
 # ==============================================================================
 # REAL-TIME HISTORY SYNCHRONIZATION
