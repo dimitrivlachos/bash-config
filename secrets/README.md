@@ -11,7 +11,7 @@ Contains environment variables with sensitive information like:
 - Work directory paths
 - Any other secrets needed by your bash configuration
 
-Copy `example_secrets.sh` to `bash_secrets.sh` and customize it for your environment.
+Copy `bash_secrets.sh.template` to `bash_secrets.sh` and customize it for your environment.
 
 ### `ssh_config`
 Contains your complete SSH configuration that will be symlinked to `~/.ssh/config`.
@@ -22,13 +22,17 @@ This file should include:
 - Work/organization specific hosts
 - Any other SSH hosts you need
 
+Copy `ssh_config.template` to `ssh_config` and customize it for your environment.
+
 Example structure:
 ```
 secrets/
-├── bash_secrets.sh      # Your actual secrets (copy from example_secrets.sh)
-├── ssh_config          # Your complete SSH configuration
-├── example_secrets.sh  # Template file
-└── README.md          # This file
+├── bash_secrets.sh          # Your actual secrets (copy from template)
+├── ssh_config              # Your complete SSH configuration (copy from template)
+├── bash_secrets.sh.template # Template file
+├── ssh_config.template     # Template file
+├── README.md              # This file
+└── .gitignore             # Protects your actual secrets
 ```
 
 ## SSH Configuration Management
@@ -62,8 +66,8 @@ Consider using a private git repository for your secrets that you clone into thi
    git clone git@github.com:yourusername/your-private-secrets.git secrets
    ```
 3. Ensure your private repository contains:
-   - `bash_secrets.sh` (your actual secrets)
-   - `ssh_config` (your SSH configuration)
+   - `bash_secrets.sh` (copied and customized from `bash_secrets.sh.template`)
+   - `ssh_config` (copied and customized from `ssh_config.template`)
    - Any other sensitive files you need
 
 This allows you to:
