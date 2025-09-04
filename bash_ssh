@@ -9,15 +9,19 @@ bc_setup_ssh_config() {
     local secrets_ssh_config="$BASH_CONFIG_DIR/secrets/ssh_config"
     local backup_suffix=".backup.$(date +%Y%m%d_%H%M%S)"
     
+    bc_log_debug "Setting up SSH config: $config_file -> $secrets_ssh_config"
+    
     # Ensure SSH directory exists
     mkdir -p "$ssh_dir"
     chmod 700 "$ssh_dir"
+    bc_log_debug "SSH directory created/verified: $ssh_dir"
     
     # Check if secrets SSH config exists
     if [[ ! -f "$secrets_ssh_config" ]]; then
         bc_log_error "SSH config not found in secrets: $secrets_ssh_config"
         return 1
     fi
+    bc_log_debug "Secrets SSH config found: $secrets_ssh_config"
     
     # Check if already correctly configured
     if bc_check_ssh_config silent >/dev/null 2>&1; then
@@ -34,6 +38,7 @@ bc_setup_ssh_config() {
         mv "$config_file" "${config_file}${backup_suffix}"
         bc_log_info "Backed up existing SSH config to: ${config_file}${backup_suffix}"
     fi
+    bc_log_debug "Handled existing config file"
     
     # Create symlink and set permissions
     ln -s "$secrets_ssh_config" "$config_file"
@@ -47,6 +52,8 @@ bc_check_ssh_config() {
     local config_file="$HOME/.ssh/config"
     local secrets_ssh_config="$BASH_CONFIG_DIR/secrets/ssh_config"
     
+    bc_log_debug "Checking SSH config: $config_file -> $secrets_ssh_config"
+    
     if [[ ! -f "$secrets_ssh_config" ]]; then
         [[ "$silent" != "silent" ]] && bc_log_error "SSH config not found in secrets: $secrets_ssh_config"
         return 1
@@ -54,16 +61,19 @@ bc_check_ssh_config() {
     
     if [[ ! -L "$config_file" ]]; then
         [[ "$silent" != "silent" ]] && bc_log_warn "SSH config is not a symlink to secrets"
+        bc_log_debug "Config file is not a symlink: $config_file"
         return 1
     fi
     
     local target=$(readlink "$config_file")
     if [[ "$target" != "$secrets_ssh_config" ]]; then
         [[ "$silent" != "silent" ]] && bc_log_warn "SSH config symlink points to wrong location: $target"
+        bc_log_debug "Symlink target mismatch: expected $secrets_ssh_config, got $target"
         return 1
     fi
     
     [[ "$silent" != "silent" ]] && bc_log_success "SSH config correctly symlinked to secrets"
+    bc_log_debug "SSH config validation passed"
     return 0
 }
 
@@ -75,21 +85,27 @@ bc_ssh_master_start() {
         return 1
     fi
     
+    bc_log_debug "Attempting to start master connection to: $host"
     bc_log_info "Starting master connection to $host..."
     if ssh -MNf "$host"; then
         bc_log_success "Master connection to $host started"
+        bc_log_debug "Master connection process backgrounded successfully"
     else
         bc_log_error "Failed to start master connection to $host"
+        bc_log_debug "SSH master connection command failed with exit code: $?"
         return 1
     fi
 }
 
 bc_ssh_master_status() {
+    bc_log_debug "Checking for active SSH master connections in ~/.ssh/cm-*"
     bc_log_info "Active SSH master connections:"
     if ls ~/.ssh/cm-* 2>/dev/null | head -1 >/dev/null; then
+        bc_log_debug "Found master connection control files"
         ls -la ~/.ssh/cm-* 2>/dev/null
     else
         bc_log_info "No active master connections found"
+        bc_log_debug "No control files matching ~/.ssh/cm-* pattern"
     fi
 }
 
@@ -98,7 +114,12 @@ bc_ssh_workday_setup() {
     bc_log_info "🚀 Setting up SSH for work day..."
     echo
     
-    # 1. Validate/setup SSH config
+    # 1. Setup SSH agent (includes automatic cleanup)
+    bc_log_info "🔐 Setting up SSH agent..."
+    bc_setup_ssh_agent
+    echo
+    
+    # 2. Validate/setup SSH config
     bc_log_info "📋 Checking SSH configuration..."
     if ! bc_check_ssh_config silent; then
         bc_log_info "Setting up SSH config..."
@@ -108,12 +129,12 @@ bc_ssh_workday_setup() {
     fi
     echo
     
-    # 2. Start master connection to bastion
+    # 3. Start master connection to bastion
     bc_log_info "🏢 Starting bastion master connection..."
     bc_ssh_master_start bastion
     echo
     
-    # 3. Show status
+    # 4. Show status
     bc_log_info "📊 Connection status:"
     bc_ssh_master_status
     echo
@@ -128,27 +149,214 @@ bc_ssh_workday_setup() {
 bc_is_ssh_key_loaded() {
     local key_file="$1"
     if [[ -z "$key_file" || ! -f "$key_file" ]]; then
+        bc_log_debug "Invalid key file provided: $key_file"
         return 1
     fi
     
+    bc_log_debug "Checking if SSH key is loaded: $key_file"
     local key_fingerprint
     key_fingerprint=$(ssh-keygen -lf "$key_file" 2>/dev/null | awk '{print $2}')
-    [[ -n "$key_fingerprint" ]] && ssh-add -l 2>/dev/null | grep -q "$key_fingerprint"
+    bc_log_debug "Key fingerprint: $key_fingerprint"
+    
+    if [[ -n "$key_fingerprint" ]] && ssh-add -l 2>/dev/null | grep -q "$key_fingerprint"; then
+        bc_log_debug "Key is loaded in agent"
+        return 0
+    else
+        bc_log_debug "Key is not loaded in agent"
+        return 1
+    fi
 }
 
 # Start a new SSH agent and save info to file
 bc_start_ssh_agent() {
     local agent_file="$1"
+    bc_log_debug "Starting new SSH agent, will save info to: $agent_file"
+    
     eval "$(ssh-agent -s)" >&2
+    bc_log_debug "SSH agent started with PID: $SSH_AGENT_PID"
+    
     echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK; export SSH_AUTH_SOCK;" > "$agent_file"
     echo "SSH_AGENT_PID=$SSH_AGENT_PID; export SSH_AGENT_PID;" >> "$agent_file"
+    bc_log_debug "Agent info saved to file: $agent_file"
+}
+
+# Unified SSH agent cleanup function
+# Usage: bc_cleanup_ssh_agents [agent_file] [mode] [interactive]
+# Modes: "orphaned" (default), "current", "stored", "all"
+# Interactive: "true" (default for non-orphaned), "false" (silent), "confirm" (ask first)
+bc_cleanup_ssh_agents() {
+    local agent_file="${1:-$HOME/.ssh-agent-info}"
+    local mode="${2:-orphaned}"
+    local interactive="${3:-auto}"
+    
+    # Set interactive mode based on cleanup type
+    if [[ "$interactive" == "auto" ]]; then
+        case "$mode" in
+            "orphaned") interactive="false" ;;  # Silent for orphaned cleanup
+            "all") interactive="confirm" ;;     # Always confirm for all
+            *) interactive="true" ;;            # Default logging for others
+        esac
+    fi
+    
+    # Get all running ssh-agent processes for this user
+    local current_agents
+    mapfile -t current_agents < <(pgrep -u "$USER" ssh-agent 2>/dev/null)
+    bc_log_debug "Found ${#current_agents[@]} ssh-agent processes for user $USER"
+    
+    if [[ ${#current_agents[@]} -eq 0 ]]; then
+        [[ "$interactive" != "false" ]] && bc_log_info "No ssh-agent processes found"
+        return 0
+    fi
+    bc_log_debug "Agent PIDs: ${current_agents[*]}"
+    
+    # Get agent info
+    local stored_pid=""
+    if [[ -f "$agent_file" ]]; then
+        stored_pid=$(grep "SSH_AGENT_PID=" "$agent_file" 2>/dev/null | cut -d'=' -f2 | cut -d';' -f1 | tr -d ' ')
+        bc_log_debug "Stored agent PID from file: $stored_pid"
+    fi
+    local current_pid="${SSH_AGENT_PID:-}"
+    bc_log_debug "Current session agent PID: $current_pid"
+    
+    # Confirmation for destructive operations
+    if [[ "$interactive" == "confirm" ]]; then
+        local msg=""
+        case "$mode" in
+            "all") msg="This will kill ALL ssh-agent processes for user $USER" ;;
+            "current") msg="This will kill the current session's SSH agent" ;;
+            "stored") msg="This will kill the stored SSH agent" ;;
+        esac
+        
+        if [[ -n "$msg" ]]; then
+            bc_log_warn "$msg"
+            read -p "Are you sure? (y/N): " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                bc_log_info "Cleanup cancelled"
+                bc_log_debug "User cancelled cleanup operation"
+                return 0
+            fi
+            bc_log_debug "User confirmed cleanup operation"
+        fi
+    fi
+    
+    [[ "$interactive" == "true" ]] && bc_log_info "Cleaning up SSH agents (mode: $mode)"
+    bc_log_debug "Starting cleanup with mode: $mode, interactive: $interactive"
+    
+    local killed_count=0
+    for pid in "${current_agents[@]}"; do
+        local should_kill=false
+        local reason=""
+        
+        case "$mode" in
+            "all")
+                should_kill=true
+                reason="force cleanup"
+                ;;
+            "current")
+                if [[ -n "$current_pid" && "$pid" == "$current_pid" ]]; then
+                    should_kill=true
+                    reason="current session agent"
+                fi
+                ;;
+            "stored")
+                if [[ -n "$stored_pid" && "$pid" == "$stored_pid" ]]; then
+                    should_kill=true
+                    reason="stored agent"
+                fi
+                ;;
+            "orphaned")
+                # Default orphaned cleanup logic
+                if [[ -n "$stored_pid" && "$pid" == "$stored_pid" ]]; then
+                    # Test if stored agent is actually working
+                    bc_log_debug "Testing stored agent connectivity (PID: $pid)"
+                    if SSH_AUTH_SOCK=$(grep "SSH_AUTH_SOCK=" "$agent_file" 2>/dev/null | cut -d'=' -f2 | cut -d';' -f1) \
+                       SSH_AGENT_PID="$stored_pid" ssh-add -l >/dev/null 2>&1; then
+                        bc_log_debug "Stored agent is working, keeping it"
+                        continue  # Agent is working, keep it
+                    else
+                        should_kill=true
+                        reason="stored agent is dead"
+                        bc_log_debug "Stored agent is not responding, marking for cleanup"
+                    fi
+                elif [[ -n "$current_pid" && "$pid" == "$current_pid" ]]; then
+                    bc_log_debug "Skipping current session agent (PID: $pid)"
+                    continue  # Don't kill current session agent
+                else
+                    should_kill=true
+                    reason="orphaned agent"
+                    bc_log_debug "Found orphaned agent (PID: $pid)"
+                fi
+                ;;
+        esac
+        
+        bc_log_debug "Processing PID $pid: should_kill=$should_kill, reason='$reason'"
+        
+        if [[ "$should_kill" == "true" ]]; then
+            if kill "$pid" 2>/dev/null; then
+                if [[ "$interactive" == "false" ]]; then
+                    bc_log_debug "Cleaned up $reason (PID: $pid)"
+                else
+                    bc_log_debug "Killed $reason (PID: $pid)"
+                fi
+                ((killed_count++))
+            fi
+        fi
+    done
+    
+    # Clean up agent info file if appropriate
+    if [[ -f "$agent_file" && -n "$stored_pid" ]]; then
+        local should_remove_file=false
+        
+        case "$mode" in
+            "all"|"stored")
+                should_remove_file=true
+                ;;
+            "orphaned")
+                # Only remove if stored agent was killed
+                local agent_still_running=false
+                for pid in "${current_agents[@]}"; do
+                    if [[ "$pid" == "$stored_pid" ]] && kill -0 "$pid" 2>/dev/null; then
+                        agent_still_running=true
+                        break
+                    fi
+                done
+                [[ "$agent_still_running" == "false" ]] && should_remove_file=true
+                ;;
+        esac
+        
+        if [[ "$should_remove_file" == "true" ]]; then
+            rm "$agent_file"
+            bc_log_debug "Removed agent info file"
+        fi
+    fi
+    
+    # Report results
+    bc_log_debug "Cleanup completed: killed $killed_count agent(s)"
+    if [[ $killed_count -gt 0 ]]; then
+        if [[ "$interactive" == "false" ]]; then
+            bc_log_debug "Auto-cleaned up $killed_count ssh-agent process(es)"
+        else
+            bc_log_success "Cleaned up $killed_count ssh-agent process(es)"
+        fi
+    else
+        if [[ "$interactive" == "true" ]]; then
+            bc_log_warn "No ssh-agent processes were cleaned up"
+            if [[ ${#current_agents[@]} -gt 0 && "$mode" != "all" ]]; then
+                bc_log_info "Use 'bc_cleanup_ssh_agents \"$agent_file\" all' to kill all agents"
+            fi
+        fi
+    fi
 }
 
 # Setup empty SSH agent for connection multiplexing
 bc_setup_ssh_agent() {
     local agent_file="${1:-$HOME/.ssh-agent-info}"
     
-    bc_log_debug "Setting up empty SSH agent for connection multiplexing"
+    bc_log_debug "Setting up SSH agent for connection multiplexing"
+    
+    # First, clean up any orphaned agents automatically
+    bc_cleanup_ssh_agents "$agent_file" "orphaned" "false"
     
     # Try to find and load existing agent info first
     if [[ -f "$agent_file" ]]; then
@@ -158,8 +366,10 @@ bc_setup_ssh_agent() {
         # Check if the loaded agent is accessible
         ssh-add -l >/dev/null 2>&1
         local ssh_status=$?
+        bc_log_debug "Agent accessibility check returned status: $ssh_status"
         
         if [[ $ssh_status -eq 2 ]]; then
+            bc_log_debug "Agent is dead or not responding, starting new one"
             bc_start_ssh_agent "$agent_file"
         else
             bc_log_debug "Reusing existing agent (status: $ssh_status)"
@@ -171,6 +381,7 @@ bc_setup_ssh_agent() {
     
     # Set up cleanup on exit for interactive shells
     if [[ $- == *i* ]]; then
+        bc_log_debug "Setting up agent cleanup trap for interactive shell"
         bc_cleanup_ssh_agent_on_exit() {
             if [[ -n "${SSH_AGENT_PID:-}" ]]; then
                 bc_log_debug "Cleaning up SSH agent on exit (PID: $SSH_AGENT_PID)"
@@ -178,105 +389,22 @@ bc_setup_ssh_agent() {
             fi
         }
         trap bc_cleanup_ssh_agent_on_exit EXIT
-    fi
-}
-
-# Manual cleanup function for orphaned SSH agents (use when needed)
-bc_cleanup_ssh_agents() {
-    local agent_file="${1:-$HOME/.ssh-agent-info}"
-    local current_agents
-    local force="${2:-false}"
-    
-    bc_log_info "Manually cleaning up SSH agents"
-    
-    # Get all running ssh-agent processes for this user
-    mapfile -t current_agents < <(pgrep -u "$USER" ssh-agent 2>/dev/null)
-    
-    if [[ ${#current_agents[@]} -eq 0 ]]; then
-        bc_log_info "No ssh-agent processes found"
-        return 0
-    fi
-    
-    # Get the PID from our agent file if it exists
-    local stored_pid=""
-    if [[ -f "$agent_file" ]]; then
-        stored_pid=$(grep "SSH_AGENT_PID=" "$agent_file" 2>/dev/null | cut -d'=' -f2 | cut -d';' -f1 | tr -d ' ')
-    fi
-    
-    # Get current agent PID from environment
-    local current_pid="${SSH_AGENT_PID:-}"
-    
-    local killed_count=0
-    for pid in "${current_agents[@]}"; do
-        local should_kill=false
-        
-        if [[ "$force" == "true" ]]; then
-            should_kill=true
-            bc_log_debug "Force mode: killing agent PID $pid"
-        elif [[ -n "$stored_pid" && "$pid" == "$stored_pid" ]]; then
-            should_kill=true
-            bc_log_debug "Killing stored agent PID $pid"
-        elif [[ -n "$current_pid" && "$pid" == "$current_pid" ]]; then
-            should_kill=true
-            bc_log_debug "Killing current session agent PID $pid"
-        elif [[ -z "$stored_pid" && -z "$current_pid" ]]; then
-            should_kill=true
-            bc_log_debug "No stored/current agent, killing orphaned PID $pid"
-        else
-            bc_log_debug "Skipping agent PID $pid (potentially in use by another session)"
-        fi
-        
-        if [[ "$should_kill" == "true" ]]; then
-            if kill "$pid" 2>/dev/null; then
-                bc_log_debug "Killed agent PID $pid"
-                ((killed_count++))
-            fi
-        fi
-    done
-    
-    # Only remove the agent info file if we killed the stored agent
-    if [[ -f "$agent_file" && -n "$stored_pid" ]]; then
-        local agent_still_running=false
-        for pid in "${current_agents[@]}"; do
-            if [[ "$pid" == "$stored_pid" ]] && kill -0 "$pid" 2>/dev/null; then
-                agent_still_running=true
-                break
-            fi
-        done
-        
-        if [[ "$agent_still_running" == "false" ]]; then
-            rm "$agent_file"
-            bc_log_debug "Removed agent info file"
-        fi
-    fi
-    
-    if [[ $killed_count -gt 0 ]]; then
-        bc_log_success "Cleaned up $killed_count ssh-agent process(es)"
     else
-        bc_log_warn "No ssh-agent processes were cleaned up"
-        if [[ ${#current_agents[@]} -gt 0 ]]; then
-            bc_log_info "Use 'bc_cleanup_ssh_agents \"$agent_file\" force' to kill all agents"
-        fi
+        bc_log_debug "Non-interactive shell, skipping cleanup trap"
     fi
 }
 
-# Add a safer wrapper function
+# Convenience wrapper functions
 bc_cleanup_current_ssh_agent() {
     local agent_file="${1:-$HOME/.ssh-agent-info}"
-    bc_cleanup_ssh_agents "$agent_file" false
+    bc_log_debug "Cleanup current agent wrapper called with agent_file: $agent_file"
+    bc_cleanup_ssh_agents "$agent_file" "current" "true"
 }
 
-# Add a force cleanup function with clear warning
 bc_cleanup_all_ssh_agents() {
     local agent_file="${1:-$HOME/.ssh-agent-info}"
-    bc_log_warn "This will kill ALL ssh-agent processes for user $USER"
-    read -p "Are you sure? (y/N): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        bc_cleanup_ssh_agents "$agent_file" true
-    else
-        bc_log_info "Cleanup cancelled"
-    fi
+    bc_log_debug "Cleanup all agents wrapper called with agent_file: $agent_file"
+    bc_cleanup_ssh_agents "$agent_file" "all" "confirm"
 }
 
 # List all SSH agents and their status
@@ -383,15 +511,17 @@ bc_ssh_help() {
     echo
     echo -e "${BC_COLOR_BLUE}Agent Management:${BC_COLOR_RESET}"
     echo -e "  ${BC_COLOR_GREEN}bc_setup_ssh_agent [agent_file]${BC_COLOR_RESET}"
-    echo -e "    Set up an empty SSH agent for connection multiplexing"
+    echo -e "    Set up an empty SSH agent for connection multiplexing (auto-cleans orphaned agents)"
+    echo -e "  ${BC_COLOR_GREEN}bc_cleanup_ssh_agents [agent_file] [mode] [interactive]${BC_COLOR_RESET}"
+    echo -e "    Clean up SSH agents. Modes: orphaned (default), current, stored, all"
     echo -e "  ${BC_COLOR_GREEN}bc_list_ssh_agents [agent_file]${BC_COLOR_RESET}"
     echo -e "    Show status of all SSH agents and current session info"
     echo -e "  ${BC_COLOR_GREEN}bc_is_ssh_key_loaded <key_file>${BC_COLOR_RESET}"
     echo -e "    Check if a specific SSH key is loaded in the current agent"
     echo -e "  ${BC_COLOR_GREEN}bc_cleanup_current_ssh_agent [agent_file]${BC_COLOR_RESET}"
-    echo -e "    Safely clean up only the current session's SSH agent"
+    echo -e "    Shortcut: clean up only the current session's SSH agent"
     echo -e "  ${BC_COLOR_GREEN}bc_cleanup_all_ssh_agents [agent_file]${BC_COLOR_RESET}"
-    echo -e "    Force cleanup all SSH agents with confirmation prompt"
+    echo -e "    Shortcut: force cleanup all SSH agents with confirmation prompt"
     echo
     echo -e "${BC_COLOR_BLUE}Quick Aliases:${BC_COLOR_RESET}"
     echo -e "  ${BC_COLOR_GREEN}ssh-setup${BC_COLOR_RESET}    → bc_ssh_workday_setup"
@@ -404,6 +534,10 @@ bc_ssh_help() {
     echo -e "  ssh-setup"
     echo -e "  ${BC_COLOR_GRAY}# Check agent status${BC_COLOR_RESET}"
     echo -e "  bc_list_ssh_agents"
+    echo -e "  ${BC_COLOR_GRAY}# Clean up specific agent types${BC_COLOR_RESET}"
+    echo -e "  bc_cleanup_ssh_agents ~/.ssh-agent-info orphaned"
+    echo -e "  bc_cleanup_ssh_agents ~/.ssh-agent-info current"
+    echo -e "  bc_cleanup_ssh_agents ~/.ssh-agent-info all confirm"
     echo -e "  ${BC_COLOR_GRAY}# Load a key and check if it's loaded${BC_COLOR_RESET}"
     echo -e "  ssh-add ~/.ssh/id_rsa"
     echo -e "  bc_is_ssh_key_loaded ~/.ssh/id_rsa"
