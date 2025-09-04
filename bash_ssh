@@ -173,11 +173,12 @@ bc_start_ssh_agent() {
     bc_log_debug "Starting new SSH agent, will save info to: $agent_file"
     
     eval "$(ssh-agent -s)" >&2
-    bc_log_debug "SSH agent started with PID: $SSH_AGENT_PID"
+    bc_log_debug "SSH agent started with PID: $SSH_AGENT_PID, Socket: $SSH_AUTH_SOCK"
     
     echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK; export SSH_AUTH_SOCK;" > "$agent_file"
     echo "SSH_AGENT_PID=$SSH_AGENT_PID; export SSH_AGENT_PID;" >> "$agent_file"
     bc_log_debug "Agent info saved to file: $agent_file"
+    bc_log_debug "File contents: $(cat "$agent_file")"
 }
 
 # Unified SSH agent cleanup function
@@ -270,14 +271,36 @@ bc_cleanup_ssh_agents() {
                 if [[ -n "$stored_pid" && "$pid" == "$stored_pid" ]]; then
                     # Test if stored agent is actually working
                     bc_log_debug "Testing stored agent connectivity (PID: $pid)"
-                    if SSH_AUTH_SOCK=$(grep "SSH_AUTH_SOCK=" "$agent_file" 2>/dev/null | cut -d'=' -f2 | cut -d';' -f1) \
-                       SSH_AGENT_PID="$stored_pid" ssh-add -l >/dev/null 2>&1; then
-                        bc_log_debug "Stored agent is working, keeping it"
-                        continue  # Agent is working, keep it
-                    else
+                    
+                    # First check if process is even running
+                    if ! kill -0 "$stored_pid" 2>/dev/null; then
                         should_kill=true
-                        reason="stored agent is dead"
-                        bc_log_debug "Stored agent is not responding, marking for cleanup"
+                        reason="stored agent process is dead"
+                        bc_log_debug "Stored agent process is not running, marking for cleanup"
+                    else
+                        # Process is running, test if socket is accessible
+                        local stored_sock
+                        stored_sock=$(grep "SSH_AUTH_SOCK=" "$agent_file" 2>/dev/null | cut -d'=' -f2 | cut -d';' -f1)
+                        
+                        if [[ -S "$stored_sock" ]]; then
+                            # Test connectivity - exit codes 0 and 1 are both acceptable
+                            local ssh_add_exit_code
+                            SSH_AUTH_SOCK="$stored_sock" SSH_AGENT_PID="$stored_pid" timeout 2 ssh-add -l >/dev/null 2>&1
+                            ssh_add_exit_code=$?
+                            
+                            if [[ $ssh_add_exit_code -eq 0 || $ssh_add_exit_code -eq 1 ]]; then
+                                bc_log_debug "Stored agent is working (exit code: $ssh_add_exit_code), keeping it"
+                                continue  # Agent is working, keep it
+                            else
+                                should_kill=true
+                                reason="stored agent not responding (exit code: $ssh_add_exit_code)"
+                                bc_log_debug "Stored agent not responding, marking for cleanup"
+                            fi
+                        else
+                            should_kill=true
+                            reason="stored agent socket file missing"
+                            bc_log_debug "Stored agent socket file does not exist, marking for cleanup"
+                        fi
                     fi
                 elif [[ -n "$current_pid" && "$pid" == "$current_pid" ]]; then
                     bc_log_debug "Skipping current session agent (PID: $pid)"
@@ -312,16 +335,11 @@ bc_cleanup_ssh_agents() {
             "all"|"stored")
                 should_remove_file=true
                 ;;
-            "orphaned")
-                # Only remove if stored agent was killed
-                local agent_still_running=false
-                for pid in "${current_agents[@]}"; do
-                    if [[ "$pid" == "$stored_pid" ]] && kill -0 "$pid" 2>/dev/null; then
-                        agent_still_running=true
-                        break
-                    fi
-                done
-                [[ "$agent_still_running" == "false" ]] && should_remove_file=true
+            "orphaned"|"current")
+                # Remove file if we killed the stored agent or current agent
+                if [[ ($killed_count -gt 0) && ((-n "$stored_pid" && "$mode" == "orphaned") || (-n "$current_pid" && "$mode" == "current")) ]]; then
+                    should_remove_file=true
+                fi
                 ;;
         esac
         
@@ -355,26 +373,58 @@ bc_setup_ssh_agent() {
     
     bc_log_debug "Setting up SSH agent for connection multiplexing"
     
-    # First, clean up any orphaned agents automatically
-    bc_cleanup_ssh_agents "$agent_file" "orphaned" "false"
-    
-    # Try to find and load existing agent info first
+    # Try to find and load existing agent info first (before cleanup)
     if [[ -f "$agent_file" ]]; then
         bc_log_debug "Found existing agent info file, attempting to reuse"
-        source "$agent_file" >/dev/null 2>&1
         
-        # Check if the loaded agent is accessible
-        ssh-add -l >/dev/null 2>&1
-        local ssh_status=$?
-        bc_log_debug "Agent accessibility check returned status: $ssh_status"
+        # Extract stored agent info
+        local stored_sock stored_pid
+        stored_sock=$(grep "SSH_AUTH_SOCK=" "$agent_file" 2>/dev/null | cut -d'=' -f2 | cut -d';' -f1)
+        stored_pid=$(grep "SSH_AGENT_PID=" "$agent_file" 2>/dev/null | cut -d'=' -f2 | cut -d';' -f1 | tr -d ' ')
         
-        if [[ $ssh_status -eq 2 ]]; then
-            bc_log_debug "Agent is dead or not responding, starting new one"
-            bc_start_ssh_agent "$agent_file"
+        bc_log_debug "Stored agent info - PID: $stored_pid, Socket: $stored_sock"
+        
+        # Test if stored agent is accessible before loading it
+        if [[ -n "$stored_pid" && -n "$stored_sock" ]] && kill -0 "$stored_pid" 2>/dev/null; then
+            bc_log_debug "Stored agent process is running, testing socket connectivity"
+            
+            if [[ -S "$stored_sock" ]]; then
+                # Test agent connectivity - exit codes: 0=has keys, 1=no keys (both are good), 2=can't connect (bad)
+                local ssh_add_exit_code
+                SSH_AUTH_SOCK="$stored_sock" SSH_AGENT_PID="$stored_pid" timeout 2 ssh-add -l >/dev/null 2>&1
+                ssh_add_exit_code=$?
+                
+                if [[ $ssh_add_exit_code -eq 0 || $ssh_add_exit_code -eq 1 ]]; then
+                    # Agent is working (either has keys or no keys - both are fine)
+                    bc_log_debug "Stored agent is working (exit code: $ssh_add_exit_code), loading into current session"
+                    export SSH_AUTH_SOCK="$stored_sock"
+                    export SSH_AGENT_PID="$stored_pid"
+                    bc_log_debug "Loaded agent environment - PID: $SSH_AGENT_PID, Socket: $SSH_AUTH_SOCK"
+                    
+                    # Now run cleanup to remove any OTHER orphaned agents (but not our working one)
+                    bc_cleanup_ssh_agents "$agent_file" "orphaned" "false"
+                    return 0
+                else
+                    # Agent is not responding (exit code 2 or timeout)
+                    bc_log_debug "Stored agent not responding (exit code: $ssh_add_exit_code), removing stale agent info file"
+                    rm "$agent_file" 2>/dev/null
+                    bc_start_ssh_agent "$agent_file"
+                fi
+            else
+                bc_log_debug "Stored agent socket file does not exist: $stored_sock"
+                bc_log_debug "Removing stale agent info file and starting new agent"
+                rm "$agent_file" 2>/dev/null
+                bc_start_ssh_agent "$agent_file"
+            fi
         else
-            bc_log_debug "Reusing existing agent (status: $ssh_status)"
+            bc_log_debug "Stored agent process not running or invalid info - PID exists: $(kill -0 "$stored_pid" 2>/dev/null && echo "yes" || echo "no")"
+            bc_log_debug "Removing stale agent info file and starting new agent"
+            rm "$agent_file" 2>/dev/null
+            bc_start_ssh_agent "$agent_file"
         fi
     else
+        # No agent file exists, clean up any orphaned agents and start fresh
+        bc_cleanup_ssh_agents "$agent_file" "orphaned" "false"
         bc_log_debug "No agent info file found, starting new agent"
         bc_start_ssh_agent "$agent_file"
     fi
