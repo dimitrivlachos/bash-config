@@ -2,6 +2,8 @@
 
 export BASH_CONFIG_VERSION="2.0.0"
 
+# export BASH_CONFIG_DEBUG="${BASH_CONFIG_DEBUG:-true}"
+
 # export BASH_CONFIG_DIR="${BASH_CONFIG_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 
 # Resolve the real path of this script (even if symlinked)
