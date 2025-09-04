@@ -43,7 +43,7 @@ shopt -s histappend
 # specializations use local unified history files.
 
 # Specialization-aware unified history
-case "${BC_SPECIALIZATION:-}" in
+case "${BASH_SPECIALISATION:-}" in
   "diamond")
     if [[ -n "${DIAMOND_WORK_DIR:-}" && -d "$DIAMOND_WORK_DIR" && -w "$DIAMOND_WORK_DIR" ]]; then
       export HISTFILE="$DIAMOND_WORK_DIR/.bash_history_unified"
@@ -54,8 +54,8 @@ case "${BC_SPECIALIZATION:-}" in
     fi
     ;;
   "asteria"|"frostpaw")
-    export HISTFILE="$HOME/.bash_history_${BC_SPECIALIZATION}"
-    bc_log_debug "Using ${BC_SPECIALIZATION} specialization history: $HISTFILE"
+    export HISTFILE="$HOME/.bash_history_${BASH_SPECIALISATION}"
+    bc_log_debug "Using ${BASH_SPECIALISATION} specialization history: $HISTFILE"
     ;;
   *)
     export HISTFILE="$HOME/.bash_history_unified"
