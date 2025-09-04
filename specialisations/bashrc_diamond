@@ -17,9 +17,10 @@ if [[ -n "${DIAMOND_USERNAME:-}" ]]; then
   export CONDA_PKGS_DIRS="/dls/science/users/$DIAMOND_USERNAME/.conda/pkgs"
 fi
 
-# SSH agent
-if [[ -n "${DIAMOND_GITHUB_KEY:-}" && -f "$DIAMOND_GITHUB_KEY" ]]; then
-  bc_setup_ssh_agent "$DIAMOND_GITHUB_KEY"
+# SSH agent — start an empty agent for connection multiplexing (do not preload keys)
+# Run only for interactive shells to avoid starting agents in non-interactive runs
+if [[ $- == *i* ]]; then
+  bc_setup_ssh_agent
 fi
 
 # SSH config setup (inform user if not configured)

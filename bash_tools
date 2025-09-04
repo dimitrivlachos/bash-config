@@ -166,53 +166,31 @@ bc_cleanup_ssh_agents() {
   fi
 }
 
-# Setup SSH agent with key and cleanup
+# Setup empty SSH agent for connection multiplexing
 bc_setup_ssh_agent() {
-  local key_file="$1"
-  local agent_file="${2:-$HOME/.ssh-agent-info}"
+  local agent_file="${1:-$HOME/.ssh-agent-info}"
   
-  bc_log_debug "Setting up SSH agent with key: $key_file"
+  bc_log_debug "Setting up empty SSH agent for connection multiplexing"
   
-  if [[ -z "$key_file" || ! -f "$key_file" ]]; then
-    bc_log_error "SSH key file not found: $key_file"
-    return 1
-  fi
-  
-  # Clean up orphaned agents first
-  bc_log_debug "Cleaning up orphaned agents"
-  bc_cleanup_ssh_agents "$agent_file"
-  
-  # Check if we already have a running agent with the key loaded
-  if ! ssh-add -l >/dev/null 2>&1 || ! bc_is_ssh_key_loaded "$key_file"; then
-    bc_log_debug "No suitable agent found or key not loaded, proceeding with setup"
+  # Try to find and load existing agent info first
+  if [[ -f "$agent_file" ]]; then
+    bc_log_debug "Found existing agent info file, attempting to reuse"
+    source "$agent_file" >/dev/null 2>&1
     
-    # Try to find existing agent info
-    if [[ -f "$agent_file" ]]; then
-      bc_log_debug "Found existing agent info file, attempting to reuse"
-      source "$agent_file" >/dev/null
-      if ssh-add -l >/dev/null 2>&1; then
-        # Agent is running, add key if not already present
-        if ! bc_is_ssh_key_loaded "$key_file"; then
-          bc_log_debug "Adding key to existing agent"
-          ssh-add "$key_file" >&2
-        else
-          bc_log_debug "Key already loaded in existing agent"
-        fi
-      else
-        # Agent not running or not accessible, clean up and start new one
-        bc_log_debug "Stored agent not accessible, starting new one"
-        rm -f "$agent_file"
-        bc_start_ssh_agent "$agent_file"
-        ssh-add "$key_file" >&2
-      fi
-    else
-      # No agent info file, start new agent
-      bc_log_debug "No agent info file found, starting new agent"
+    # Check if the loaded agent is accessible
+    ssh-add -l >/dev/null 2>&1
+    local ssh_status=$?
+    
+    if [[ $ssh_status -eq 2 ]]; then
+      bc_log_debug "Stored agent not accessible, removing stale file and starting new agent"
+      rm -f "$agent_file"
       bc_start_ssh_agent "$agent_file"
-      ssh-add "$key_file" >&2
+    else
+      bc_log_debug "Reusing existing agent (status: $ssh_status)"
     fi
   else
-    bc_log_debug "SSH agent already running with key loaded"
+    bc_log_debug "No agent info file found, starting new agent"
+    bc_start_ssh_agent "$agent_file"
   fi
   
   # Set up cleanup on exit for interactive shells
