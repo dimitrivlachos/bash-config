@@ -101,71 +101,6 @@ bc_start_ssh_agent() {
   echo "SSH_AGENT_PID=$SSH_AGENT_PID; export SSH_AGENT_PID;" >> "$agent_file"
 }
 
-# Clean up orphaned SSH agents
-# This function cleans up agents when necessary to avoid killing working
-# agents that other terminals might be using
-bc_cleanup_ssh_agents() {
-  local agent_file="${1:-$HOME/.ssh-agent-info}"
-  local current_agents
-  local stored_pid
-  local keep_stored_agent=false
-  
-  # First, check if we have a stored agent that's still working
-  if [[ -f "$agent_file" ]]; then
-    # Extract PID
-    stored_pid=$(grep "SSH_AGENT_PID=" "$agent_file" 2>/dev/null | cut -d'=' -f2 | cut -d';' -f1 | tr -d ' ')
-    
-    # Test if the stored agent is still accessible
-    if [[ -n "$stored_pid" ]]; then
-      # Temporarily load the stored agent's environment
-      source "$agent_file" >/dev/null 2>&1
-      
-      # If we can successfully list keys, the agent is working
-      if ssh-add -l >/dev/null 2>&1; then
-        bc_log_debug "Stored agent (PID: $stored_pid) is still accessible"
-        keep_stored_agent=true
-      else
-        bc_log_debug "Stored agent (PID: $stored_pid) is not accessible, marking for cleanup"
-        # Remove the stale agent info file
-        rm -f "$agent_file"
-      fi
-    fi
-  fi
-  
-  # Get all running ssh-agent processes for this user
-  mapfile -t current_agents < <(pgrep -u "$USER" ssh-agent 2>/dev/null)
-  
-  if [[ "$keep_stored_agent" == "true" ]]; then
-    # Keep the working stored agent, clean up others
-    bc_log_debug "Cleaning up other agents while keeping stored agent (PID: $stored_pid)"
-    local killed_count=0
-    for pid in "${current_agents[@]}"; do
-      if [[ "$pid" != "$stored_pid" ]]; then
-        if kill "$pid" 2>/dev/null; then
-          bc_log_info "Cleaned up redundant ssh-agent (PID: $pid)"
-          ((killed_count++))
-        fi
-      fi
-    done
-    [[ $killed_count -gt 0 ]] && bc_log_success "Cleaned up $killed_count redundant ssh-agent process(es)"
-  else
-    # No working stored agent, clean up all
-    bc_log_debug "No working stored agent found, cleaning up all ssh-agent processes"
-    local killed_count=0
-    for pid in "${current_agents[@]}"; do
-      if kill "$pid" 2>/dev/null; then
-        bc_log_info "Cleaned up orphaned ssh-agent (PID: $pid)"
-        ((killed_count++))
-      fi
-    done
-    if [[ $killed_count -gt 0 ]]; then
-      bc_log_success "Cleaned up $killed_count orphaned ssh-agent process(es)"
-    else
-      bc_log_debug "No ssh-agent processes found to clean up"
-    fi
-  fi
-}
-
 # Setup empty SSH agent for connection multiplexing
 bc_setup_ssh_agent() {
   local agent_file="${1:-$HOME/.ssh-agent-info}"
@@ -205,6 +140,39 @@ bc_setup_ssh_agent() {
       fi
     }
     trap bc_cleanup_ssh_agent_on_exit EXIT
+  fi
+}
+
+# Manual cleanup function for orphaned SSH agents (use when needed)
+bc_cleanup_ssh_agents() {
+  local agent_file="${1:-$HOME/.ssh-agent-info}"
+  local current_agents
+  
+  bc_log_info "Manually cleaning up SSH agents"
+  
+  # Get all running ssh-agent processes for this user
+  mapfile -t current_agents < <(pgrep -u "$USER" ssh-agent 2>/dev/null)
+  
+  if [[ ${#current_agents[@]} -eq 0 ]]; then
+    bc_log_info "No ssh-agent processes found"
+    return 0
+  fi
+  
+  local killed_count=0
+  for pid in "${current_agents[@]}"; do
+    if kill "$pid" 2>/dev/null; then
+      bc_log_info "Cleaned up ssh-agent (PID: $pid)"
+      ((killed_count++))
+    fi
+  done
+  
+  # Remove the agent info file since we killed everything
+  [[ -f "$agent_file" ]] && rm -f "$agent_file"
+  
+  if [[ $killed_count -gt 0 ]]; then
+    bc_log_success "Cleaned up $killed_count ssh-agent process(es)"
+  else
+    bc_log_warn "No ssh-agent processes could be cleaned up"
   fi
 }
 
