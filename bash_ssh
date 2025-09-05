@@ -599,6 +599,23 @@ bc_ssh_help() {
     echo -e "  • Cleanup functions prioritize safety over convenience"
 }
 
+# Diamond SOCKS proxy functions (for accessing Diamond intranet from local machine)
+# Start Diamond SOCKS proxy for web browsing
+diamond-proxy() {
+    local port="${1:-8080}"
+    bc_log_info "Starting SOCKS proxy on port $port..."
+    echo "Configure FoxyProxy: SOCKS5 127.0.0.1:$port"
+    echo "For Diamond intranet access, use patterns: *.diamond.ac.uk, *.diamond"
+    echo "Press Ctrl+C to stop the proxy"
+    ssh -D "$port" -C -N diamond-proxy
+}
+
+# List all active Diamond SSH connections
+diamond-proxy-list() {
+    bc_log_info "Active Diamond SSH connections:"
+    pgrep -af "ssh.*diamond" 2>/dev/null || echo "No active Diamond SSH connections found"
+}
+
 # Simple aliases
 alias ssh-setup='bc_ssh_workday_setup'
 alias ssh-status='bc_ssh_master_status'
