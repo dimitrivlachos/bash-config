@@ -24,6 +24,36 @@ This file should include:
 
 Copy `ssh_config.template` to `ssh_config` and customize it for your environment.
 
+#### SSH Key Strategy for Dual Network Environments
+
+When working with systems that have both internal and external access (like Diamond Light Source), you may need a special SSH key strategy:
+
+**External Machine (Home/Personal):**
+- Generate `id_ed25519_diamond` on your personal machine
+- Add the public key to authorized_keys on the work systems
+- Use this key for connecting from outside the work network
+
+**Internal Network (Work Systems):**
+- Generate another `id_ed25519_diamond` on the work file system
+- This key exists in the shared .ssh folder across all work machines
+- Also add this public key to authorized_keys on work systems
+- Use this key for direct connections when on the internal network
+
+**SSH Config Smart Switching:**
+The SSH configuration uses `ProxyCommand` with smart fallback logic:
+```ssh
+Host ws123
+    ProxyCommand bash -c 'timeout 5 ssh -q -W %h:%p ws123-direct 2>/dev/null || ssh -W %h:%p bastion'
+```
+
+This approach:
+1. **Tries direct connection first** (`ws123-direct`) - works when on internal network
+2. **Times out after 5 seconds** if direct connection fails
+3. **Falls back to bastion proxy** - works from external networks
+4. **Uses same key name** (`id_ed25519_diamond`) but different physical keys depending on location
+
+This allows seamless SSH access whether you're working from home or from within the work network, without needing to change configurations or remember different connection methods.
+
 Example structure:
 ```
 secrets/
