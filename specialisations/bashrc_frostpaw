@@ -3,10 +3,75 @@ alias update='sudo pacman -Syu && yay -Sua'
 alias cleanup='sudo pacman -Rns $(pacman -Qdtq) 2>/dev/null || echo "No orphan packages."'
 alias full-update='update && cleanup'
 
-# Not exporting FASTFETCH_BIN as the binary is already in the PATH
+# Frostpaw system configuration
 export FASTFETCH_CONFIG="$BASH_CONFIG_DIR/configs/fastfetch_frostpaw.jsonc"
 
 # If mamba is not installed, alias to micromamba is created
 if ! command -v mamba &>/dev/null; then
   alias mamba='micromamba'
+fi
+
+# SSH agent setup and key loading for Frostpaw specialization
+# Frostpaw typically connects externally and needs keys for remote access
+if [[ $- == *i* ]]; then
+  # Load Frostpaw-specific SSH keys
+  bc_load_frostpaw_ssh_keys() {
+    local diamond_key="$HOME/.ssh/id_ed25519_diamond"
+    local asteria_key="$HOME/.ssh/id_ed25519_asteria"
+    local d_key="$HOME/.ssh/id_ed25519_d"
+    local s_key="$HOME/.ssh/id_ed25519_s"
+    
+    bc_log_debug "Loading Frostpaw specialization SSH keys"
+    
+    # Load Diamond key for external connections via bastion
+    if [[ -f "$diamond_key" ]]; then
+      if ! bc_is_ssh_key_loaded "$diamond_key"; then
+        bc_log_info "Loading Diamond SSH key for external access..."
+        ssh-add "$diamond_key" 2>/dev/null && bc_log_success "Diamond key loaded" || bc_log_warn "Failed to load Diamond key"
+      else
+        bc_log_debug "Diamond key already loaded"
+      fi
+    else
+      bc_log_warn "Diamond SSH key not found: $diamond_key"
+    fi
+    
+    # Load Asteria key for Pi access
+    if [[ -f "$asteria_key" ]]; then
+      if ! bc_is_ssh_key_loaded "$asteria_key"; then
+        bc_log_info "Loading Asteria SSH key..."
+        ssh-add "$asteria_key" 2>/dev/null && bc_log_success "Asteria key loaded" || bc_log_warn "Failed to load Asteria key"
+      else
+        bc_log_debug "Asteria key already loaded"
+      fi
+    else
+      bc_log_debug "Asteria SSH key not found: $asteria_key"
+    fi
+    
+    # Load 'd' key (likely for GitHub account 'd')
+    if [[ -f "$d_key" ]]; then
+      if ! bc_is_ssh_key_loaded "$d_key"; then
+        bc_log_info "Loading 'd' SSH key..."
+        ssh-add "$d_key" 2>/dev/null && bc_log_success "'d' key loaded" || bc_log_warn "Failed to load 'd' key"
+      else
+        bc_log_debug "'d' key already loaded"
+      fi
+    else
+      bc_log_debug "'d' SSH key not found: $d_key"
+    fi
+    
+    # Load 's' key (likely for GitHub account 's')
+    if [[ -f "$s_key" ]]; then
+      if ! bc_is_ssh_key_loaded "$s_key"; then
+        bc_log_info "Loading 's' SSH key..."
+        ssh-add "$s_key" 2>/dev/null && bc_log_success "'s' key loaded" || bc_log_warn "Failed to load 's' key"
+      else
+        bc_log_debug "'s' key already loaded"
+      fi
+    else
+      bc_log_debug "'s' SSH key not found: $s_key"
+    fi
+  }
+  
+  # Load keys
+  bc_load_frostpaw_ssh_keys
 fi

@@ -17,10 +17,45 @@ if [[ -n "${DIAMOND_USERNAME:-}" ]]; then
   export CONDA_PKGS_DIRS="/dls/science/users/$DIAMOND_USERNAME/.conda/pkgs"
 fi
 
-# SSH agent — start an empty agent for connection multiplexing (do not preload keys)
+# SSH agent setup and key loading for Diamond specialization
 # Run only for interactive shells to avoid starting agents in non-interactive runs
 if [[ $- == *i* ]]; then
   bc_setup_ssh_agent
+  
+  # Load Diamond-specific SSH keys
+  bc_load_diamond_ssh_keys() {
+    local diamond_key="$HOME/.ssh/id_ed25519_diamond"
+    local github_key="$HOME/.ssh/id_ed25519_github"
+    
+    bc_log_debug "Loading Diamond specialization SSH keys"
+    
+    # Load Diamond key for internal Diamond Light Source access
+    if [[ -f "$diamond_key" ]]; then
+      if ! bc_is_ssh_key_loaded "$diamond_key"; then
+        bc_log_info "Loading Diamond SSH key..."
+        ssh-add "$diamond_key" 2>/dev/null && bc_log_success "Diamond key loaded" || bc_log_warn "Failed to load Diamond key"
+      else
+        bc_log_debug "Diamond key already loaded"
+      fi
+    else
+      bc_log_warn "Diamond SSH key not found: $diamond_key"
+    fi
+    
+    # Load GitHub key for work projects
+    if [[ -f "$github_key" ]]; then
+      if ! bc_is_ssh_key_loaded "$github_key"; then
+        bc_log_info "Loading GitHub SSH key..."
+        ssh-add "$github_key" 2>/dev/null && bc_log_success "GitHub key loaded" || bc_log_warn "Failed to load GitHub key"
+      else
+        bc_log_debug "GitHub key already loaded"
+      fi
+    else
+      bc_log_warn "GitHub SSH key not found: $github_key"
+    fi
+  }
+  
+  # Load keys after agent setup
+  bc_load_diamond_ssh_keys
 fi
 
 # SSH config setup (inform user if not configured)
