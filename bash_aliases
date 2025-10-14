@@ -11,3 +11,6 @@ alias tdir='tdir'
 alias tem='tem'
 alias ph='ph'
 alias rp='set_prompt'
+
+# K8s shortcuts
+alias k='kubectl'
