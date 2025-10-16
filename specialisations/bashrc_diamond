@@ -86,17 +86,17 @@ check_vscode_links() {
     ["~/.vscode-server/extensions"]="$base/extensions"
     ["~/.cache/Microsoft"]="$base/ms"
     ["~/.cache/vscode-cpptools"]="$base/vscode-cpptools"
+    ["~/.vscode-server"]="$base/server"
   )
 
   echo "[VSCode Symlink Check]"
 
   for path in "${!links[@]}"; do
-    local expanded_path
+    local expanded_path expected_target actual_target
     expanded_path=$(eval echo "$path")
-    local expected_target="${links[$path]}"
+    expected_target="${links[$path]}"
 
     if [ -L "$expanded_path" ]; then
-      local actual_target
       actual_target=$(readlink -f "$expanded_path")
       if [ "$actual_target" = "$expected_target" ]; then
         echo "✅ $path -> $expected_target"
