@@ -51,6 +51,7 @@ check_vscode_links() {
     ["~/.vscode-server/extensions"]="$base/extensions"
     ["~/.cache/Microsoft"]="$base/ms"
     ["~/.cache/vscode-cpptools"]="$base/vscode-cpptools"
+    ["~/.vscode-server"]="$base/server"
   )
 
   echo "[VSCode Symlink Check]"
