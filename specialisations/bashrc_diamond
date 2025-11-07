@@ -94,8 +94,19 @@ setup_fastfetch() {
   export FASTFETCH_CONFIG="$BASH_CONFIG_DIR/configs/fastfetch_diamond.jsonc"
 }
 
-# Call the function
+# Set k9s binary path with validation
+setup_k9s() {
+  local k9s_path="/dls/science/users/rto52325/k9s/k9s"
+  if [[ -x "$k9s_path" ]]; then
+    export PATH="$(dirname "$k9s_path"):$PATH"
+  else
+    echo "[WARN] Custom k9s binary not found or not executable: $k9s_path" >&2
+  fi
+}
+
+# Call the functions
 setup_fastfetch
+setup_k9s
 
 # Diamond-specific aliases
 alias cdu='cd "$DIAMOND_WORK_DIR"'
