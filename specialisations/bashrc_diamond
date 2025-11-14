@@ -111,3 +111,4 @@ setup_k9s
 # Diamond-specific aliases
 alias cdu='cd "$DIAMOND_WORK_DIR"'
 alias cdx='cd "$DIAMOND_SCRATCH_DIR"'
+alias build='./build.sh'
