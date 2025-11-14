@@ -217,3 +217,126 @@ bc_debug_toggle() {
     bc_log_debug "This is a debug message example"
   fi
 }
+
+# Check if bash-config repository is up-to-date with remote
+bc_check_updates() {
+  local check_mode="${1:-notify}"  # notify, silent, or verbose
+  
+  # Only run in the config directory
+  if [[ ! -d "$BASH_CONFIG_DIR/.git" ]]; then
+    [[ "$check_mode" == "verbose" ]] && bc_log_warn "Not a git repository: $BASH_CONFIG_DIR"
+    return 1
+  fi
+  
+  bc_log_debug "Checking for bash-config updates in $BASH_CONFIG_DIR"
+  
+  # Save current directory and switch to config dir
+  local original_dir="$PWD"
+  cd "$BASH_CONFIG_DIR" || return 1
+  
+  # Fetch latest from remote (quietly)
+  if ! git fetch origin main --quiet 2>/dev/null; then
+    [[ "$check_mode" == "verbose" ]] && bc_log_warn "Failed to fetch updates (network issue?)"
+    cd "$original_dir"
+    return 1
+  fi
+  
+  # Get current and remote commit hashes
+  local current_commit
+  local remote_commit
+  current_commit=$(git rev-parse HEAD 2>/dev/null)
+  remote_commit=$(git rev-parse origin/main 2>/dev/null)
+  
+  bc_log_debug "Current commit: $current_commit"
+  bc_log_debug "Remote commit: $remote_commit"
+  
+  # Check if we're behind
+  if [[ "$current_commit" != "$remote_commit" ]]; then
+    local commits_behind
+    commits_behind=$(git rev-list --count HEAD..origin/main 2>/dev/null)
+    
+    if [[ "$check_mode" != "silent" ]]; then
+      bc_log_warn "bash-config is $commits_behind commit(s) behind origin/main"
+      bc_log_info "Run 'bc_update_config' to see changes or update"
+    fi
+    
+    cd "$original_dir"
+    return 2  # Behind remote
+  else
+    [[ "$check_mode" == "verbose" ]] && bc_log_success "bash-config is up-to-date"
+    cd "$original_dir"
+    return 0  # Up-to-date
+  fi
+}
+
+# Show what would change if we updated
+bc_update_config() {
+  local action="${1:-show}"  # show, update
+  
+  if [[ ! -d "$BASH_CONFIG_DIR/.git" ]]; then
+    bc_log_error "Not a git repository: $BASH_CONFIG_DIR"
+    return 1
+  fi
+  
+  local original_dir="$PWD"
+  cd "$BASH_CONFIG_DIR" || return 1
+  
+  # Fetch latest
+  bc_log_info "Fetching latest changes..."
+  if ! git fetch origin main --quiet 2>/dev/null; then
+    bc_log_error "Failed to fetch updates (network issue?)"
+    cd "$original_dir"
+    return 1
+  fi
+  
+  # Check if behind
+  local current_commit
+  local remote_commit
+  current_commit=$(git rev-parse HEAD 2>/dev/null)
+  remote_commit=$(git rev-parse origin/main 2>/dev/null)
+  
+  if [[ "$current_commit" == "$remote_commit" ]]; then
+    bc_log_success "Already up-to-date!"
+    cd "$original_dir"
+    return 0
+  fi
+  
+  case "$action" in
+    "show")
+      bc_log_info "Changes in origin/main:"
+      echo ""
+      git log --oneline --graph --decorate HEAD..origin/main
+      echo ""
+      bc_log_info "Files that would change:"
+      git diff --stat HEAD origin/main
+      echo ""
+      bc_log_info "Run 'bc_update_config update' to apply these changes"
+      ;;
+    "update")
+      # Check for uncommitted changes
+      if ! git diff-index --quiet HEAD -- 2>/dev/null; then
+        bc_log_error "You have uncommitted changes. Commit or stash them first:"
+        git status --short
+        cd "$original_dir"
+        return 1
+      fi
+      
+      bc_log_info "Updating bash-config..."
+      if git merge --ff-only origin/main; then
+        bc_log_success "Successfully updated to latest version"
+        bc_log_info "Restart your shell or run: source ~/.bashrc"
+      else
+        bc_log_error "Update failed. You may need to resolve conflicts manually."
+        cd "$original_dir"
+        return 1
+      fi
+      ;;
+    *)
+      bc_log_error "Unknown action: $action (use 'show' or 'update')"
+      cd "$original_dir"
+      return 1
+      ;;
+  esac
+  
+  cd "$original_dir"
+}

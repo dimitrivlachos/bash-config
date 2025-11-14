@@ -2,3 +2,4 @@ secrets/*
 !secrets/
 !secrets/*.template
 !secrets/README.md
+.last_update_check
