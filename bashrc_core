@@ -84,6 +84,7 @@ if [[ $- == *i* ]]; then
         bc_check_updates notify
       fi
       echo "$current_date" > "$update_check_file"
-    ) &
+    ) &>/dev/null &
+    disown
   fi
 fi
