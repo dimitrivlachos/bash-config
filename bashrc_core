@@ -72,16 +72,19 @@ if [[ $- == *i* ]]; then
   bc_ff
   
   # Check for updates (but only once per day to avoid slowdown)
-  update_check_file="$BASH_CONFIG_DIR/.last_update_check"
-  current_date=$(date +%Y%m%d)
-  
-  if [[ ! -f "$update_check_file" ]] || [[ "$(cat "$update_check_file" 2>/dev/null)" != "$current_date" ]]; then
-    # Check for updates synchronously (once per day, so acceptable delay)
-    bc_check_updates silent
-    check_result=$?
-    if [[ $check_result -eq 2 ]]; then
-      bc_check_updates notify
+  # Only check if we have a real terminal (not in scripts/pipes/ssh commands)
+  if [[ -t 0 ]]; then
+    update_check_file="$BASH_CONFIG_DIR/.last_update_check"
+    current_date=$(date +%Y%m%d)
+    
+    if [[ ! -f "$update_check_file" ]] || [[ "$(cat "$update_check_file" 2>/dev/null)" != "$current_date" ]]; then
+      # Check for updates synchronously (once per day, so acceptable delay)
+      bc_check_updates silent
+      check_result=$?
+      if [[ $check_result -eq 2 ]]; then
+        bc_check_updates notify
+      fi
+      echo "$current_date" > "$update_check_file"
     fi
-    echo "$current_date" > "$update_check_file"
   fi
 fi
