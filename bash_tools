@@ -305,10 +305,10 @@ bc_update_config() {
     "show")
       bc_log_info "Changes in origin/main:"
       echo ""
-      git log --oneline --graph --decorate HEAD..origin/main
+      git --no-pager log --oneline --graph --decorate HEAD..origin/main
       echo ""
       bc_log_info "Files that would change:"
-      git diff --stat HEAD origin/main
+      git --no-pager diff --stat HEAD origin/main
       echo ""
       bc_log_info "Run 'bc_update_config update' to apply these changes"
       ;;
