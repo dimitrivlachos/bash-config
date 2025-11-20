@@ -13,6 +13,34 @@ Contains environment variables with sensitive information like:
 
 Copy `bash_secrets.sh.template` to `bash_secrets.sh` and customize it for your environment.
 
+### `gitconfig_user_public` & `gitconfig_user_private`
+Contains your Git user configuration (name and email) for different accounts:
+
+**For Diamond (single account):**
+```ini
+# gitconfig_user_public
+[user]
+    name = Your Name
+    email = your.work@email.com
+```
+
+**For Frostpaw (dual GitHub accounts):**
+```ini
+# gitconfig_user_public (for github.com-d)
+[user]
+    name = Your Name
+    email = your.work@email.com
+```
+
+```ini
+# gitconfig_user_private (for github.com-s)
+[user]
+    name = Your Name
+    email = your.personal@email.com
+```
+
+The Frostpaw configuration automatically switches between these based on the Git remote URL pattern.
+
 ### `ssh_config`
 Contains your complete SSH configuration that will be symlinked to `~/.ssh/config`.
 
@@ -57,18 +85,22 @@ This allows seamless SSH access whether you're working from home or from within 
 Example structure:
 ```
 secrets/
-├── bash_secrets.sh          # Your actual secrets (copy from template)
-├── ssh_config              # Your complete SSH configuration (copy from template)
-├── bash_secrets.sh.template # Template file
-├── ssh_config.template     # Template file
-├── README.md              # This file
-└── .gitignore             # Protects your actual secrets
+├── bash_secrets.sh             # Your actual secrets (copy from template)
+├── ssh_config                  # Your complete SSH configuration (copy from template)
+├── gitconfig_user_public       # Git user config for public/work account
+├── gitconfig_user_private      # Git user config for private account (Frostpaw only)
+├── bash_secrets.sh.template    # Template file
+├── ssh_config.template         # Template file
+├── README.md                   # This file
+└── .gitignore                  # Protects your actual secrets
 ```
 
-## SSH Configuration Management
+## Configuration Management
+
+### SSH Configuration
 
 The SSH config will be automatically managed when you:
-1. Run `bc_setup_ssh_config` manually
+1. Run `ssh-setup` (alias for `bc_setup_ssh_config`)
 2. Load a specialization that includes SSH config management (like diamond)
 3. Run `bc_validate_config` (which will warn if SSH config isn't properly set up)
 
@@ -77,12 +109,23 @@ The system will:
 - Backup any existing SSH config file
 - Set proper permissions (600) on the SSH config file
 
+### Git Configuration
+
+Git user configuration is managed via `git-setup` (alias for `bc_setup_git_config`):
+1. Reads the appropriate template from `configs/gitconfig_{specialisation}`
+2. Substitutes `$BASH_CONFIG_DIR` with the actual path
+3. Generates `~/.gitconfig` with all resolved paths
+4. Includes user credentials from `secrets/gitconfig_user_{public,private}`
+
+Run `git-setup` after creating or modifying your Git user config files.
+
 ## Security Note
 
 **Keep this directory private!** It contains sensitive information like:
 - SSH configurations with hostnames and usernames
 - Paths to SSH keys
 - Work-related directory paths
+- Git user names and email addresses
 
 Consider using a private git repository for your secrets that you clone into this directory across your machines.
 
