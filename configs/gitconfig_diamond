@@ -1,10 +1,10 @@
 # Include base configuration
 [include]
-    path = gitconfig_base
+    path = $BASH_CONFIG_DIR/configs/gitconfig_base
 
 # Include user configuration from secrets
 [include]
-    path = ../secrets/gitconfig_user_public
+    path = $BASH_CONFIG_DIR/secrets/gitconfig_user_public
 
 # Include local overrides if they exist
 [include]

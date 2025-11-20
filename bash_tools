@@ -351,46 +351,24 @@ bc_update_config() {
 # Git configuration management
 bc_setup_git_config() {
     local git_config="$HOME/.gitconfig"
-    local repo_git_config=""
     local backup_suffix=".backup.$(date +%Y%m%d_%H%M%S)"
     
-    # Determine which config to use based on specialization
-    if [[ -n "${BASH_SPECIALISATION:-}" ]]; then
-        repo_git_config="$BASH_CONFIG_DIR/configs/gitconfig_$BASH_SPECIALISATION"
-    fi
-    
-    # Fallback to looking for any gitconfig in configs/
-    if [[ -z "$repo_git_config" || ! -f "$repo_git_config" ]]; then
-        local available_configs
-        available_configs=($(ls "$BASH_CONFIG_DIR/configs/gitconfig_"* 2>/dev/null))
-        
-        if [[ ${#available_configs[@]} -eq 1 ]]; then
-            repo_git_config="${available_configs[0]}"
-            bc_log_info "Using available Git config: $(basename "$repo_git_config")"
-        elif [[ ${#available_configs[@]} -gt 1 ]]; then
-            bc_log_error "Multiple Git configs found. Please set BASH_SPECIALISATION or specify one:"
-            for cfg in "${available_configs[@]}"; do
-                echo "  - $(basename "$cfg")"
-            done
-            return 1
-        else
-            bc_log_error "No Git config found in repo: $BASH_CONFIG_DIR/configs/"
-            return 1
-        fi
-    fi
-    
-    bc_log_debug "Setting up Git config: $git_config -> $repo_git_config"
-    
-    # Check if repo config exists
-    if [[ ! -f "$repo_git_config" ]]; then
-        bc_log_error "Git config not found in repo: $repo_git_config"
+    # Determine specialisation
+    local specialisation="${BASH_SPECIALISATION:-}"
+    if [[ -z "$specialisation" ]]; then
+        bc_log_error "BASH_SPECIALISATION not set"
         return 1
     fi
     
-    # Check if already correctly configured
-    if bc_check_git_config silent >/dev/null 2>&1; then
-        bc_log_info "Git config already correctly configured"
-        return 0
+    local template_config="$BASH_CONFIG_DIR/configs/gitconfig_$specialisation"
+    
+    bc_log_debug "Setting up Git config for specialisation: $specialisation"
+    bc_log_debug "Template: $template_config"
+    
+    # Check if template config exists
+    if [[ ! -f "$template_config" ]]; then
+        bc_log_error "Git config template not found: $template_config"
+        return 1
     fi
     
     # Handle existing config file
@@ -403,65 +381,36 @@ bc_setup_git_config() {
         bc_log_info "Backed up existing Git config to: ${git_config}${backup_suffix}"
     fi
     
-    # Create symlink
-    ln -s "$repo_git_config" "$git_config"
-    bc_log_success "Git config symlinked to repo: $(basename "$repo_git_config")"
+    # Generate config by substituting BASH_CONFIG_DIR
+    sed "s|\$BASH_CONFIG_DIR|$BASH_CONFIG_DIR|g" "$template_config" > "$git_config"
+    
+    bc_log_success "Git config generated for $specialisation"
 }
 
 # Git config validation helper
 bc_check_git_config() {
     local silent="${1:-false}"
     local git_config="$HOME/.gitconfig"
-    local repo_git_config=""
+    local base_config="$BASH_CONFIG_DIR/configs/gitconfig_base"
     
-    # Determine expected config based on specialization
-    if [[ -n "${BASH_SPECIALISATION:-}" ]]; then
-        repo_git_config="$BASH_CONFIG_DIR/configs/gitconfig_$BASH_SPECIALISATION"
-    fi
+    bc_log_debug "Checking Git config: $git_config"
     
-    # Fallback to any available config
-    if [[ -z "$repo_git_config" || ! -f "$repo_git_config" ]]; then
-        local available_configs
-        available_configs=($(ls "$BASH_CONFIG_DIR/configs/gitconfig_"* 2>/dev/null))
-        
-        if [[ ${#available_configs[@]} -eq 1 ]]; then
-            repo_git_config="${available_configs[0]}"
-        elif [[ ${#available_configs[@]} -eq 0 ]]; then
-            [[ "$silent" != "silent" ]] && bc_log_error "No Git config found in repo: $BASH_CONFIG_DIR/configs/"
-            return 1
-        else
-            # Multiple configs available, just check if symlink points to any of them
-            if [[ -L "$git_config" ]]; then
-                local target=$(readlink "$git_config")
-                for cfg in "${available_configs[@]}"; do
-                    if [[ "$target" == "$cfg" ]]; then
-                        [[ "$silent" != "silent" ]] && bc_log_success "Git config correctly symlinked to repo: $(basename "$cfg")"
-                        return 0
-                    fi
-                done
-            fi
-            [[ "$silent" != "silent" ]] && bc_log_warn "Git config not symlinked to any repo config"
-            return 1
-        fi
-    fi
-    
-    bc_log_debug "Checking Git config: $git_config -> $repo_git_config"
-    
-    if [[ ! -f "$repo_git_config" ]]; then
-        [[ "$silent" != "silent" ]] && bc_log_error "Git config not found in repo: $repo_git_config"
+    if [[ ! -f "$base_config" ]]; then
+        [[ "$silent" != "silent" ]] && bc_log_error "Base Git config not found in repo: $base_config"
         return 1
     fi
     
-    if [[ -L "$git_config" ]]; then
-        local target=$(readlink "$git_config")
-        if [[ "$target" != "$repo_git_config" ]]; then
-            [[ "$silent" != "silent" ]] && bc_log_warn "Git config symlink points to wrong location: $target"
-            return 1
-        fi
-        [[ "$silent" != "silent" ]] && bc_log_success "Git config correctly symlinked to repo: $(basename "$repo_git_config")"
-        return 0
-    else
-        [[ "$silent" != "silent" ]] && bc_log_warn "Git config is not a symlink to repo"
+    if [[ ! -f "$git_config" ]]; then
+        [[ "$silent" != "silent" ]] && bc_log_warn "Git config not found: $git_config"
         return 1
     fi
+    
+    # Check if config contains the base include with correct path
+    if ! grep -q "path = $BASH_CONFIG_DIR/configs/gitconfig_base" "$git_config"; then
+        [[ "$silent" != "silent" ]] && bc_log_warn "Git config doesn't include base config with correct path"
+        return 1
+    fi
+    
+    [[ "$silent" != "silent" ]] && bc_log_success "Git config properly configured"
+    return 0
 }

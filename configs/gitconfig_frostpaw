@@ -1,6 +1,6 @@
 # Include base configuration
 [include]
-    path = gitconfig_base
+    path = $BASH_CONFIG_DIR/configs/gitconfig_base
 
 # Conditional includes based on remote URL
 # NOTE: Create these files in $BASH_CONFIG_DIR/secrets/:
@@ -9,17 +9,17 @@
 #
 # Public account using github.com-d
 [includeIf "hasconfig:remote.*.url:git@github.com-d:*/**"]
-    path = ../secrets/gitconfig_user_public
+    path = $BASH_CONFIG_DIR/secrets/gitconfig_user_public
 
 [includeIf "hasconfig:remote.*.url:https://github.com-d/**"]
-    path = ../secrets/gitconfig_user_public
+    path = $BASH_CONFIG_DIR/secrets/gitconfig_user_public
 
 # Private account using github.com-s
 [includeIf "hasconfig:remote.*.url:git@github.com-s:*/**"]
-    path = ../secrets/gitconfig_user_private
+    path = $BASH_CONFIG_DIR/secrets/gitconfig_user_private
 
 [includeIf "hasconfig:remote.*.url:https://github.com-s/**"]
-    path = ../secrets/gitconfig_user_private
+    path = $BASH_CONFIG_DIR/secrets/gitconfig_user_private
 
 # Include local overrides if they exist
 [include]
