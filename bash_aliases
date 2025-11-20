@@ -14,3 +14,6 @@ alias rp='set_prompt'
 
 # K8s shortcuts
 alias k='kubectl'
+
+# Git config setup
+alias git-setup='bc_setup_git_config'
