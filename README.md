@@ -14,17 +14,23 @@ This repo is designed to be:
 ## 📁 Structure
 ```
 bash-config/
-├── bashrc_core # Main orchestrator script (symlinked as ~/.bashrc_core)
-├── bash_aliases # Shared aliases across all systems
-├── bash_prompt # Prompt appearance and toggles
-├── bash_exports # Shared environment settings
-├── bash_tools # Utility shell functions (e.g. mae)
-├── install.sh # Setup helper script
+├── bashrc_core         # Main orchestrator script (symlinked as ~/.bashrc_core)
+├── bash_aliases        # Shared aliases across all systems
+├── bash_prompt         # Prompt appearance and toggles
+├── bash_exports        # Shared environment settings
+├── bash_tools          # Utility shell functions (e.g. mae, Git config setup)
+├── install.sh          # Setup helper script
+├── configs/
+│   ├── gitconfig_base      # Shared Git aliases and settings
+│   ├── gitconfig_diamond   # Diamond-specific Git config template
+│   └── gitconfig_frostpaw  # Frostpaw-specific Git config template
 ├── secrets/
-│ └── bash_secrets.sh # Local-only, untracked file for credentials and paths
+│   ├── bash_secrets.sh         # Local-only, untracked file for credentials and paths
+│   ├── gitconfig_user_public   # Git user config for public account (untracked)
+│   └── gitconfig_user_private  # Git user config for private account (untracked)
 └── specialisations/
-├── bashrc_frostpaw # Home setup (Arch Linux, neofetch, yay updates)
-└── bashrc_diamond # Work setup (modules, SSH keys, hostname mapping)
+    ├── bashrc_frostpaw # Home setup (Arch Linux, neofetch, yay updates)
+    └── bashrc_diamond  # Work setup (modules, SSH keys, hostname mapping)
 ```
 
 ---
@@ -65,14 +71,17 @@ export BASH_SPECIALISATION="{specialisation}"
 ```
 This variable is read by `bashrc_core` to load the correct specialisation file.
 
+---
+
 ## 🔑 Secrets 🔐
 Sensitive values are stored in:
 ```bash
 bash-config/secrets/bash_secrets.sh
 ```
-This file is *ignored by Git* and sourced by `bashrc_core`. It contins environment variables for:
+This file is *ignored by Git* and sourced by `bashrc_core`. It contains environment variables for:
 - Usernames
 - Key paths
+
 This allows a file to dynamically set the correct values such as:
 ```bash
 /dls/science/users/$USER/...
