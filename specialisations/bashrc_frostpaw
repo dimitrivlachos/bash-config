@@ -3,6 +3,10 @@ alias update='sudo pacman -Syu && yay -Sua'
 alias cleanup='sudo pacman -Rns $(pacman -Qdtq) 2>/dev/null || echo "No orphan packages."'
 alias full-update='update && cleanup'
 
+# Tailscale connection management
+alias tsdown='sudo tailscale down'
+alias tsup='sudo tailscale up --accept-routes --accept-dns --ssh'
+
 # Not exporting FASTFETCH_BIN as the binary is already in the PATH
 export FASTFETCH_CONFIG="$BASH_CONFIG_DIR/configs/fastfetch_frostpaw.jsonc"
 
