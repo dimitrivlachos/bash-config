@@ -1,89 +1,92 @@
 [alias]
     # Status & Info
-    s = status -sb
-    st = status
+    s = status -sb                      # Short status with branch info
+    st = status                         # Full status
     
     # Commit shortcuts
-    c = commit
-    cm = commit -m
-    ca = commit --amend
-    can = commit --amend --no-edit
+    c = commit                          # Commit (will open editor)
+    cm = commit -m                      # Commit with inline message
+    ca = commit --amend                 # Amend last commit (opens editor)
+    can = commit --amend --no-edit      # Amend last commit without changing message
     
     # Branch management
-    b = branch
-    ba = branch -a
-    bd = branch -d
-    bD = branch -D
+    b = branch                          # List local branches
+    ba = branch -a                      # List all branches (including remote)
+    bd = branch -d                      # Delete branch (safe, checks if merged)
+    bD = branch -D                      # Force delete branch
     
     # Log & History
-    l = log --oneline --graph --decorate
-    lg = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit
-    last = log -1 HEAD
+    l = log --oneline --graph --decorate    # Compact log with graph
+    lg = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit  # Beautiful colored log
+    last = log -1 HEAD                  # Show last commit details
     
     # Checkout & Switch
-    co = checkout
-    cob = checkout -b
-    sw = switch
-    swc = switch -c
+    co = checkout                       # Checkout branch or restore files
+    cob = checkout -b                   # Create and checkout new branch
+    sw = switch                         # Switch branches (modern alternative to checkout)
+    swc = switch -c                     # Create and switch to new branch
     
     # Add & Stage
-    a = add
-    aa = add -A
-    ap = add -p
+    a = add                             # Stage files
+    aa = add -A                         # Stage all changes (new, modified, deleted)
+    ap = add -p                         # Stage changes interactively (patch mode)
     
     # Push & Pull
-    p = push
-    pl = pull
-    pf = push --force-with-lease
+    p = push                            # Push to remote
+    pl = pull                           # Pull from remote
+    pf = push --force-with-lease        # Safe force push (checks remote hasn't changed)
     
     # Diff
-    d = diff
-    ds = diff --staged
-    dc = diff --cached
+    d = diff                            # Show unstaged changes
+    ds = diff --staged                  # Show staged changes
+    dc = diff --cached                  # Show staged changes (same as ds)
     
     # Remote management
-    r = remote -v
-    ra = remote add
-    rr = remote remove
+    r = remote -v                       # List remotes with URLs
+    ra = remote add                     # Add new remote
+    rr = remote remove                  # Remove remote
     
     # Stash shortcuts
-    ss = stash save
-    sp = stash pop
-    sl = stash list
-    sd = stash drop
+    ss = stash save                     # Stash changes with message
+    sp = stash pop                      # Apply and remove latest stash
+    sl = stash list                     # List all stashes
+    sd = stash drop                     # Delete a stash
     
     # Rebase shortcuts
-    rb = rebase
-    rbi = rebase -i
-    rbc = rebase --continue
-    rba = rebase --abort
+    rb = rebase                         # Rebase current branch
+    rbi = rebase -i                     # Interactive rebase
+    rbc = rebase --continue             # Continue rebase after resolving conflicts
+    rba = rebase --abort                # Abort rebase and return to original state
     
     # Utility shortcuts
-    unstage = reset HEAD --
-    discard = checkout --
-    undo = reset --soft HEAD^
-    amend = commit --amend --no-edit
+    unstage = reset HEAD --             # Unstage files (keep changes)
+    discard = checkout --               # Discard changes to files
+    undo = reset --soft HEAD^           # Undo last commit (keep changes staged)
+    amend = commit --amend --no-edit    # Amend last commit without changing message
+    
+    # Help
+    aliases = "!git config --get-regexp ^alias\\. | sed 's/^alias\\.//; s/ /\\t/' | column -t -s $'\\t' | sed 's/^/  /'"  # Show all aliases
 
 [core]
-    editor = vim
-    autocrlf = input
-    pager = less -FRX
+    editor = vim                        # Use vim for commit messages and interactive rebases
+    autocrlf = input                    # Convert CRLF to LF on commit (important for cross-platform)
+    pager = less -FRX                   # -F quit if one screen, -R colors, -X don't clear screen
 
 [color]
-    ui = auto
+    ui = auto                           # Enable colors when output is to terminal
 
 [pull]
-    rebase = false
+    rebase = false                      # Use merge strategy when pulling (not rebase)
 
 [push]
-    default = current
-    autoSetupRemote = true
+    default = current                   # Push current branch to branch of same name on remote
+    autoSetupRemote = true              # Automatically set upstream when pushing new branches
 
 [init]
-    defaultBranch = main
+    defaultBranch = main                # Use 'main' as default branch name for new repos
 
 [merge]
-    conflictstyle = diff3
+    conflictstyle = diff3               # Show 3-way conflict markers (yours|base|theirs)
 
 [diff]
-    colorMoved = default
+    colorMoved = default                # Highlight moved code blocks differently in diffs
