@@ -111,6 +111,9 @@ bc_ssh_master_status() {
 
 # Daily work setup - this is your main function
 bc_ssh_workday_setup() {
+    local start_proxy="${1:-false}"
+    local proxy_port="${2:-8080}"
+    
     bc_log_info "🚀 Setting up SSH for work day..."
     echo
     
@@ -141,6 +144,13 @@ bc_ssh_workday_setup() {
     
     bc_log_success "🎉 Work day SSH setup complete!"
     bc_log_info "💡 All SSH connections will now use the shared master connection"
+    
+    # 5. Optionally start Diamond proxy
+    if [[ "$start_proxy" == "true" || "$start_proxy" == "proxy" ]]; then
+        echo
+        bc_log_info "🌐 Starting Diamond SOCKS proxy..."
+        diamond-proxy "$proxy_port"
+    fi
 }
 
 # SSH Agent Management Functions
@@ -617,7 +627,8 @@ diamond-proxy-list() {
 }
 
 # Simple aliases
-alias ssh-setup='bc_ssh_workday_setup'
+alias ssh-setup='bc_ssh_workday_setup proxy'
+alias ssh-setup-only='bc_ssh_workday_setup false'
 alias ssh-status='bc_ssh_master_status'
 alias ssh-master='bc_ssh_master_start'
 alias ssh-help='bc_ssh_help'
