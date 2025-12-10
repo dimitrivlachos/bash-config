@@ -80,7 +80,7 @@
     rebase = false                      # Use merge strategy when pulling (not rebase)
 
 [push]
-    default = current                   # Push current branch to branch of same name on remote
+    default = upstream                  # Push to configured upstream branch (allows different local/remote names)
     autoSetupRemote = true              # Automatically set upstream when pushing new branches
 
 [init]
