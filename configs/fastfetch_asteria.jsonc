@@ -45,7 +45,7 @@
       "type": "command",
       "key": "Login",
       "keyColor": "magenta",
-      "text": "echo \"\\033[1;32m$USER\\033[0m @ \\033[1;32masteria\\033[0m\""
+      "text": "echo \"\\033[1;32m$USER\\033[0m @ \\033[1;32m$(hostname)\\033[0m\""
     },
     {
       "type": "command",
