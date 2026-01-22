@@ -1,19 +1,37 @@
+# ==============================================================================
+# SHARED ALIASES
+# ==============================================================================
+# Common aliases available across all systems/specialisations.
+# Machine-specific aliases should be defined in specialisations/bashrc_*
+#
+# Note: Prompt toggle functions (tgit, tvenv, tdir, tem, ph) are defined
+# in bash_prompt and are available directly as commands - no aliases needed.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Core System
+# ------------------------------------------------------------------------------
 alias ls='ls --color=auto'
-alias ma='mamba activate '
-alias md='mamba deactivate'
-alias maeb='mae && cd build/'
 alias clearf='clear && ff'
 
-# Custom prompt toggles
-alias tgit='tgit'
-alias tvenv='tvenv'
-alias tdir='tdir'
-alias tem='tem'
-alias ph='ph'
-alias rp='set_prompt'
+# ------------------------------------------------------------------------------
+# Conda/Mamba Environment Management
+# ------------------------------------------------------------------------------
+alias ma='mamba activate '
+alias md='mamba deactivate'
+alias maeb='mae && cd build/'        # Activate local env and enter build dir
 
-# K8s shortcuts
+# ------------------------------------------------------------------------------
+# Prompt Helpers (shortcuts to bash_prompt functions)
+# ------------------------------------------------------------------------------
+alias rp='set_prompt'                # Reset/refresh prompt
+
+# ------------------------------------------------------------------------------
+# Kubernetes
+# ------------------------------------------------------------------------------
 alias k='kubectl'
 
-# Git config setup
+# ------------------------------------------------------------------------------
+# Configuration Management
+# ------------------------------------------------------------------------------
 alias git-setup='bc_setup_git_config'

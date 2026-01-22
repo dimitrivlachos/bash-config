@@ -1,5 +1,23 @@
-# Colored logging functions
-# Color codes for consistent messaging
+# ==============================================================================
+# TOOLS AND UTILITY FUNCTIONS
+# ==============================================================================
+# Shared utility functions for bash-config system.
+# Includes:
+#   - Logging functions (bc_log_*)
+#   - Environment helpers (mae)
+#   - System info (bc_ff/ff)
+#   - Configuration management (bc_validate_config, bc_info)
+#   - Update management (bc_check_updates, bc_update_config)
+#   - Git configuration (bc_setup_git_config, bc_check_git_config)
+# ==============================================================================
+
+# ==============================================================================
+# LOGGING FUNCTIONS
+# ==============================================================================
+# Consistent colored logging for all bash-config components.
+# Usage: bc_log_info "message", bc_log_error "message", etc.
+
+# Color codes
 BC_COLOR_RED='\033[0;31m'
 BC_COLOR_GREEN='\033[0;32m'
 BC_COLOR_YELLOW='\033[1;33m'
@@ -8,7 +26,6 @@ BC_COLOR_CYAN='\033[0;36m'
 BC_COLOR_GRAY='\033[0;37m'
 BC_COLOR_RESET='\033[0m'
 
-# Logging functions with colors
 bc_log_error() {
   echo -e "${BC_COLOR_RED}❌ [ERROR]${BC_COLOR_RESET} $*" >&2
 }
@@ -29,7 +46,12 @@ bc_log_debug() {
   [[ "${BASH_CONFIG_DEBUG:-}" == "true" ]] && echo -e "${BC_COLOR_GRAY}🔍 [DEBUG]${BC_COLOR_RESET} $*" >&2
 }
 
-# Local activate helper
+# ==============================================================================
+# ENVIRONMENT HELPERS
+# ==============================================================================
+
+# Activate local mamba/micromamba environment
+# Usage: mae [env_name]  (default: ENV)
 mae() {
   local env_name="${1:-ENV}"
   local env_path=""
@@ -53,24 +75,22 @@ mae() {
   fi
 }
 
-# fastfetch wrapper that allows specialisations to override binary and config
+# ==============================================================================
+# SYSTEM INFORMATION
+# ==============================================================================
+
+# Fastfetch wrapper (specialisations can override FASTFETCH_BIN and FASTFETCH_CONFIG)
 bc_ff() {
-  local ff_bin="${FASTFETCH_BIN:-fastfetch}" # Use override if set, otherwise system
+  local ff_bin="${FASTFETCH_BIN:-fastfetch}"
   local ff_config="${FASTFETCH_CONFIG:-}"
 
-  # Check if fastfetch is installed
   if command -v "$ff_bin" &>/dev/null; then
-    # Check if config file is set and exists
     if [[ -n "$ff_config" && -f "$ff_config" ]]; then
-      # Run fastfetch with the specified config
       "$ff_bin" --config "$ff_config" 2>/dev/null
     else
-      # Run fastfetch without a config file
       "$ff_bin" 2>/dev/null
     fi
   else
-    # Echo error to stderr (>&2)
-    # and return non-zero exit code to indicate failure
     bc_log_error "[fastfetch] binary not found: $ff_bin"
     return 1
   fi
@@ -79,7 +99,11 @@ bc_ff() {
 # Backward compatibility alias
 ff() { bc_ff "$@"; }
 
-# Configuration validation function
+# ==============================================================================
+# CONFIGURATION VALIDATION
+# ==============================================================================
+
+# Validate all configuration settings
 bc_validate_config() {
   local issues=0
   
@@ -93,7 +117,7 @@ bc_validate_config() {
     ((issues++))
   fi
   
-  # Check specialization file exists
+  # Check specialization file
   if [[ -n "${BASH_SPECIALISATION:-}" ]]; then
     local spec_file="$BASH_CONFIG_DIR/specialisations/bashrc_$BASH_SPECIALISATION"
     if [[ -f "$spec_file" ]]; then
@@ -134,7 +158,7 @@ bc_validate_config() {
     bc_log_warn "No secrets file (this may be intentional)"
   fi
   
-  # Check SSH configuration (function from bash_ssh)
+  # Check SSH configuration
   if command -v bc_check_ssh_config >/dev/null 2>&1 && bc_check_ssh_config silent >/dev/null 2>&1; then
     bc_log_success "SSH config properly configured"
   else
@@ -190,7 +214,7 @@ bc_info() {
   [[ -n "${FASTFETCH_BIN:-}" ]] && echo -e "  ${BC_COLOR_BLUE}Fastfetch:${BC_COLOR_RESET} $FASTFETCH_BIN"
   [[ -n "${FASTFETCH_CONFIG:-}" ]] && echo -e "  ${BC_COLOR_BLUE}Fastfetch Config:${BC_COLOR_RESET} $FASTFETCH_CONFIG"
   
-  # Show SSH agent status
+  # SSH agent status
   if ssh-add -l >/dev/null 2>&1; then
     local key_count
     key_count=$(ssh-add -l 2>/dev/null | wc -l)
@@ -199,7 +223,7 @@ bc_info() {
     echo -e "  ${BC_COLOR_BLUE}SSH Agent:${BC_COLOR_RESET} ${BC_COLOR_YELLOW}Inactive${BC_COLOR_RESET}"
   fi
   
-  # Show history status
+  # History status
   if [[ -n "${HISTFILE:-}" ]]; then
     if [[ -f "$HISTFILE" ]]; then
       local hist_size
@@ -225,11 +249,14 @@ bc_debug_toggle() {
   fi
 }
 
+# ==============================================================================
+# UPDATE MANAGEMENT
+# ==============================================================================
+
 # Check if bash-config repository is up-to-date with remote
 bc_check_updates() {
   local check_mode="${1:-notify}"  # notify, silent, or verbose
   
-  # Only run in the config directory
   if [[ ! -d "$BASH_CONFIG_DIR/.git" ]]; then
     [[ "$check_mode" == "verbose" ]] && bc_log_warn "Not a git repository: $BASH_CONFIG_DIR"
     return 1
@@ -237,27 +264,22 @@ bc_check_updates() {
   
   bc_log_debug "Checking for bash-config updates in $BASH_CONFIG_DIR"
   
-  # Save current directory and switch to config dir
   local original_dir="$PWD"
   cd "$BASH_CONFIG_DIR" || return 1
   
-  # Fetch latest from remote (quietly)
   if ! git fetch origin main --quiet 2>/dev/null; then
     [[ "$check_mode" == "verbose" ]] && bc_log_warn "Failed to fetch updates (network issue?)"
     cd "$original_dir"
     return 1
   fi
   
-  # Get current and remote commit hashes
-  local current_commit
-  local remote_commit
+  local current_commit remote_commit
   current_commit=$(git rev-parse HEAD 2>/dev/null)
   remote_commit=$(git rev-parse origin/main 2>/dev/null)
   
   bc_log_debug "Current commit: $current_commit"
   bc_log_debug "Remote commit: $remote_commit"
   
-  # Check if we're behind
   if [[ "$current_commit" != "$remote_commit" ]]; then
     local commits_behind
     commits_behind=$(git rev-list --count HEAD..origin/main 2>/dev/null)
@@ -276,7 +298,7 @@ bc_check_updates() {
   fi
 }
 
-# Show what would change if we updated
+# Show what would change if we updated, or perform the update
 bc_update_config() {
   local action="${1:-show}"  # show, update
   
@@ -288,7 +310,6 @@ bc_update_config() {
   local original_dir="$PWD"
   cd "$BASH_CONFIG_DIR" || return 1
   
-  # Fetch latest
   bc_log_info "Fetching latest changes..."
   if ! git fetch origin main --quiet 2>/dev/null; then
     bc_log_error "Failed to fetch updates (network issue?)"
@@ -296,9 +317,7 @@ bc_update_config() {
     return 1
   fi
   
-  # Check if behind
-  local current_commit
-  local remote_commit
+  local current_commit remote_commit
   current_commit=$(git rev-parse HEAD 2>/dev/null)
   remote_commit=$(git rev-parse origin/main 2>/dev/null)
   
@@ -320,7 +339,6 @@ bc_update_config() {
       bc_log_info "Run 'bc_update_config update' to apply these changes"
       ;;
     "update")
-      # Check for uncommitted changes
       if ! git diff-index --quiet HEAD -- 2>/dev/null; then
         bc_log_error "You have uncommitted changes. Commit or stash them first:"
         git status --short
@@ -348,12 +366,15 @@ bc_update_config() {
   cd "$original_dir"
 }
 
-# Git configuration management
+# ==============================================================================
+# GIT CONFIGURATION
+# ==============================================================================
+
+# Setup Git configuration from templates
 bc_setup_git_config() {
     local git_config="$HOME/.gitconfig"
     local backup_suffix=".backup.$(date +%Y%m%d_%H%M%S)"
     
-    # Determine specialisation
     local specialisation="${BASH_SPECIALISATION:-}"
     if [[ -z "$specialisation" ]]; then
         bc_log_error "BASH_SPECIALISATION not set"
@@ -365,13 +386,12 @@ bc_setup_git_config() {
     bc_log_debug "Setting up Git config for specialisation: $specialisation"
     bc_log_debug "Template: $template_config"
     
-    # Check if template config exists
     if [[ ! -f "$template_config" ]]; then
         bc_log_error "Git config template not found: $template_config"
         return 1
     fi
     
-    # Handle existing config file
+    # Backup existing config
     if [[ -L "$git_config" ]]; then
         local current_target=$(readlink "$git_config")
         bc_log_info "Removing existing symlink (pointed to: $current_target)"
@@ -381,13 +401,13 @@ bc_setup_git_config() {
         bc_log_info "Backed up existing Git config to: ${git_config}${backup_suffix}"
     fi
     
-    # Generate config by substituting BASH_CONFIG_DIR
+    # Generate config with resolved paths
     sed "s|\$BASH_CONFIG_DIR|$BASH_CONFIG_DIR|g" "$template_config" > "$git_config"
     
     bc_log_success "Git config generated for $specialisation"
 }
 
-# Git config validation helper
+# Validate Git configuration
 bc_check_git_config() {
     local silent="${1:-false}"
     local git_config="$HOME/.gitconfig"
@@ -405,7 +425,6 @@ bc_check_git_config() {
         return 1
     fi
     
-    # Check if config contains the base include with correct path
     if ! grep -q "path = $BASH_CONFIG_DIR/configs/gitconfig_base" "$git_config"; then
         [[ "$silent" != "silent" ]] && bc_log_warn "Git config doesn't include base config with correct path"
         return 1
@@ -413,4 +432,102 @@ bc_check_git_config() {
     
     [[ "$silent" != "silent" ]] && bc_log_success "Git config properly configured"
     return 0
+}
+
+# ==============================================================================
+# MASTER HELP SYSTEM
+# ==============================================================================
+
+# Centralized help for all bash-config functions
+bc_help() {
+    local topic="${1:-}"
+    
+    if [[ -z "$topic" ]]; then
+        echo -e "${BC_COLOR_CYAN}🌀 Bash Config Help (v${BASH_CONFIG_VERSION:-unknown})${BC_COLOR_RESET}"
+        echo
+        echo -e "${BC_COLOR_BLUE}Usage:${BC_COLOR_RESET} bc_help [topic]"
+        echo
+        echo -e "${BC_COLOR_YELLOW}Available Topics:${BC_COLOR_RESET}"
+        echo "  prompt    - Prompt customization commands"
+        echo "  history   - History management (hhelp)"
+        echo "  ssh       - SSH management (ssh-help)"
+        echo "  git       - Git configuration"
+        echo "  config    - Configuration validation and info"
+        echo "  update    - Update management"
+        echo
+        echo -e "${BC_COLOR_YELLOW}Quick Commands:${BC_COLOR_RESET}"
+        echo "  bc_info           - Show current configuration"
+        echo "  bc_validate_config - Validate all settings"
+        echo "  bc_debug_toggle   - Toggle debug logging"
+        echo
+        echo -e "${BC_COLOR_GRAY}Tip: Run 'bc_help <topic>' for detailed help${BC_COLOR_RESET}"
+        return
+    fi
+    
+    case "$topic" in
+        prompt)
+            ph
+            ;;
+        history)
+            if command -v hhelp &>/dev/null; then
+                hhelp
+            else
+                bc_log_warn "History module not loaded"
+            fi
+            ;;
+        ssh)
+            if command -v bc_ssh_help &>/dev/null; then
+                bc_ssh_help
+            else
+                bc_log_warn "SSH module not loaded"
+            fi
+            ;;
+        git)
+            echo -e "${BC_COLOR_CYAN}🔧 Git Configuration:${BC_COLOR_RESET}"
+            echo
+            echo -e "${BC_COLOR_BLUE}Commands:${BC_COLOR_RESET}"
+            echo "  git-setup         - Generate ~/.gitconfig from templates"
+            echo "  bc_check_git_config - Validate git configuration"
+            echo
+            echo -e "${BC_COLOR_BLUE}Files:${BC_COLOR_RESET}"
+            echo "  configs/gitconfig_base     - Shared aliases and settings"
+            echo "  configs/gitconfig_<spec>   - Specialisation templates"
+            echo "  secrets/gitconfig_user_*   - User credentials (gitignored)"
+            echo
+            echo -e "${BC_COLOR_GRAY}Run 'git aliases' to see all available git shortcuts${BC_COLOR_RESET}"
+            ;;
+        config)
+            echo -e "${BC_COLOR_CYAN}⚙️ Configuration Management:${BC_COLOR_RESET}"
+            echo
+            echo -e "${BC_COLOR_BLUE}Commands:${BC_COLOR_RESET}"
+            echo "  bc_info            - Display current configuration status"
+            echo "  bc_validate_config - Check all configuration settings"
+            echo "  bc_debug_toggle    - Enable/disable debug logging"
+            echo
+            echo -e "${BC_COLOR_BLUE}Environment Variables:${BC_COLOR_RESET}"
+            echo "  BASH_CONFIG_DIR     - Root directory of bash-config"
+            echo "  BASH_SPECIALISATION - Current specialisation (frostpaw/diamond/asteria)"
+            echo "  BASH_CONFIG_DEBUG   - Enable debug logging (true/false)"
+            ;;
+        update)
+            echo -e "${BC_COLOR_CYAN}🔄 Update Management:${BC_COLOR_RESET}"
+            echo
+            echo -e "${BC_COLOR_BLUE}Commands:${BC_COLOR_RESET}"
+            echo "  bc_check_updates [mode]    - Check for updates"
+            echo "    modes: notify (default), silent, verbose"
+            echo
+            echo "  bc_update_config [action]  - Manage updates"
+            echo "    actions: show (default), update"
+            echo
+            echo -e "${BC_COLOR_BLUE}Examples:${BC_COLOR_RESET}"
+            echo "  bc_check_updates           # Check and notify"
+            echo "  bc_update_config           # Show pending changes"
+            echo "  bc_update_config update    # Apply updates"
+            ;;
+        *)
+            bc_log_error "Unknown topic: $topic"
+            bc_log_info "Run 'bc_help' to see available topics"
+            return 1
+            ;;
+    esac
 }

@@ -1,12 +1,29 @@
-# Module system
+# ==============================================================================
+# DIAMOND SPECIALISATION
+# ==============================================================================
+# Diamond Light Source work environment configuration.
+# Provides:
+#   - Module loading (CUDA, CMake)
+#   - Custom PATH additions
+#   - SSH agent setup for interactive shells
+#   - Hostname mapping for GPU nodes
+#   - VSCode symlink validation
+#   - Fastfetch and k9s configuration
+#   - Diamond-specific aliases
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Module System
+# ------------------------------------------------------------------------------
 # If version is not set, default to known good versions
 CUDA_VERSION="${CUDA_VERSION:-12.6}"
 CMAKE_VERSION="${CMAKE_VERSION:-4.0.2}"
-# Load modules
 module load cuda/"$CUDA_VERSION"
 module load cmake/"$CMAKE_VERSION"
 
-# Custom path
+# ------------------------------------------------------------------------------
+# Custom PATH
+# ------------------------------------------------------------------------------
 if [[ -n "${DIAMOND_USERNAME:-}" ]]; then
   [[ -d "/dls/science/users/$DIAMOND_USERNAME/.tmux_install/tmux_build/bin" ]] && \
     export PATH="/dls/science/users/$DIAMOND_USERNAME/.tmux_install/tmux_build/bin:$PATH"
@@ -17,18 +34,22 @@ if [[ -n "${DIAMOND_USERNAME:-}" ]]; then
   export CONDA_PKGS_DIRS="/dls/science/users/$DIAMOND_USERNAME/.conda/pkgs"
 fi
 
+# ------------------------------------------------------------------------------
+# SSH Setup (interactive shells only)
+# ------------------------------------------------------------------------------
 # SSH agent — start an empty agent for connection multiplexing (do not preload keys)
-# Run only for interactive shells to avoid starting agents in non-interactive runs
 if [[ $- == *i* ]]; then
   bc_setup_ssh_agent
 fi
 
-# SSH config setup (inform user if not configured)
+# Inform user if SSH config not set up
 if ! bc_check_ssh_config silent >/dev/null 2>&1; then
     bc_log_info "SSH config not set up, run 'ssh-setup' when ready to connect to work"
 fi
 
-# Hostname mapping
+# ------------------------------------------------------------------------------
+# Hostname Mapping
+# ------------------------------------------------------------------------------
 declare -A HOSTNAME_MAP=(
   ["cs05r-sc-serv-53.diamond.ac.uk"]="i03-gpu"
   ["cs05r-sc-serv-54.diamond.ac.uk"]="i24-gpu"
@@ -41,7 +62,9 @@ map_hostname() {
     echo "${HOSTNAME_MAP[$host]:-\h}"
 }
 
-# VSCode link check
+# ------------------------------------------------------------------------------
+# VSCode Remote Link Validation
+# ------------------------------------------------------------------------------
 check_vscode_links() {
   local base="/dls/science/users/$USER/.vscode_remote"
   local problems=0
@@ -82,7 +105,9 @@ check_vscode_links() {
   fi
 }
 
-# Set fastfetch binary and config with validation
+# ------------------------------------------------------------------------------
+# Fastfetch Configuration
+# ------------------------------------------------------------------------------
 setup_fastfetch() {
   local ff_path="/dls/science/users/$USER/fastfetch/build/fastfetch"
   if [[ -x "$ff_path" ]]; then
@@ -94,7 +119,9 @@ setup_fastfetch() {
   export FASTFETCH_CONFIG="$BASH_CONFIG_DIR/configs/fastfetch_diamond.jsonc"
 }
 
-# Set k9s binary path with validation
+# ------------------------------------------------------------------------------
+# K9s Configuration
+# ------------------------------------------------------------------------------
 setup_k9s() {
   local k9s_path="/dls/science/users/rto52325/k9s/k9s"
   if [[ -x "$k9s_path" ]]; then
@@ -104,11 +131,13 @@ setup_k9s() {
   fi
 }
 
-# Call the functions
+# Initialize tools
 setup_fastfetch
 setup_k9s
 
-# Diamond-specific aliases
+# ------------------------------------------------------------------------------
+# Diamond-Specific Aliases
+# ------------------------------------------------------------------------------
 alias cdu='cd "$DIAMOND_WORK_DIR"'
 alias cdx='cd "$DIAMOND_SCRATCH_DIR"'
 alias build='./build.sh'
