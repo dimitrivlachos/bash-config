@@ -1,14 +1,39 @@
-# Colours
-VEN_COLOR="\[\033[0;32m\]"
-DIR_COLOR="\[\033[1;34m\]"
-USER_COLOR="\[\033[1;33m\]"
-HOST_COLOR="\[\033[1;33m\]"
-RESET_COLOR="\[\033[0m\]"
+# ==============================================================================
+# PROMPT CONFIGURATION
+# ==============================================================================
+# Customizable shell prompt with support for:
+#   - Git branch display
+#   - Virtual environment (conda/mamba) display
+#   - Emoji indicators
+#   - Custom hostname mapping (via specialisations)
+#   - Pi-style alternate prompt
+#
+# Toggle Commands:
+#   tgit  - Toggle git branch display
+#   tvenv - Toggle virtual environment display
+#   tdir  - Toggle directory format (short/long)
+#   tem   - Toggle emoji display
+#   ph    - Show prompt help
+#   rp    - Reset/refresh prompt (alias in bash_aliases)
+# ==============================================================================
 
-# Emoji support
+# ------------------------------------------------------------------------------
+# Color Definitions
+# ------------------------------------------------------------------------------
+VEN_COLOR="\[\033[0;32m\]"       # Green - virtual env
+DIR_COLOR="\[\033[1;34m\]"       # Bold Blue - directory
+USER_COLOR="\[\033[1;33m\]"      # Bold Yellow - username
+HOST_COLOR="\[\033[1;33m\]"      # Bold Yellow - hostname
+RESET_COLOR="\[\033[0m\]"        # Reset
+
+# VS Code terminal: enable emojis by default
 [[ "$TERM_PROGRAM" == "vscode" ]] && export SHOW_EMOJIS=1
 
-# Git branch
+# ------------------------------------------------------------------------------
+# Prompt Components
+# ------------------------------------------------------------------------------
+
+# Git branch parser
 parse_git_branch() {
     [[ "$SHOW_GIT_BRANCH" -eq 1 ]] || return
     local branch
@@ -16,7 +41,7 @@ parse_git_branch() {
     [[ -n "$branch" ]] && echo -n "${SHOW_EMOJIS:+ 🌿}(${branch})"
 }
 
-# Virtualenv
+# Virtual environment parser (conda/mamba)
 parse_virtualenv() {
     local env_name=""
     if [[ -n "$CONDA_DEFAULT_ENV" ]]; then
@@ -28,12 +53,9 @@ parse_virtualenv() {
     fi
 }
 
-# Hostname mapping
-# This function can be overridden by specialisations to provide custom hostname mappings.
-# Specialisations should define HOSTNAME_MAP associative array if they want custom mappings.
+# Hostname mapping (can be overridden by specialisations via HOSTNAME_MAP)
 map_hostname() {
   local host="$1"
-  # Check if HOSTNAME_MAP is defined (from specialization)
   if declare -p HOSTNAME_MAP &>/dev/null 2>&1; then
     echo "${HOSTNAME_MAP[$host]:-$host}"
   else
@@ -41,25 +63,25 @@ map_hostname() {
   fi
 }
 
-# Prompt
+# ------------------------------------------------------------------------------
+# Main Prompt Function
+# ------------------------------------------------------------------------------
+
 set_prompt() {
     local prompt_style="${1:-$BASH_PROMPT_STYLE}"
     
-    # Check if we're using Pi-style prompt
+    # Pi-style prompt (Raspberry Pi OS default colors)
     if [[ "$prompt_style" == "pi" ]]; then
-        # Use Raspberry Pi OS default color scheme: green user@host, blue path and $
         case "$TERM" in
             xterm-color|*-256color) color_prompt=yes;;
         esac
         
         if [[ "$color_prompt" == "yes" ]] || [[ -x /usr/bin/tput ]] && tput setaf 1 >&/dev/null; then
-            # Pi's signature green user@host, blue path and $ with space
             PS1='${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w \$\[\033[00m\] '
         else
             PS1='${debian_chroot:+($debian_chroot)}\u@\h:\w\$ '
         fi
         
-        # Set xterm title like Pi default
         case "$TERM" in
         xterm*|rxvt*)
             PS1="\[\e]0;${debian_chroot:+($debian_chroot)}\u@\h: \w\a\]$PS1"
@@ -68,7 +90,7 @@ set_prompt() {
         return
     fi
     
-    # Default custom prompt style
+    # Default custom prompt
     local venv branch dir
     venv="$(parse_virtualenv)"
     branch="$(parse_git_branch)"
@@ -77,19 +99,25 @@ set_prompt() {
     PS1="${venv}[${USER_COLOR}\u${RESET_COLOR}@${HOST_COLOR}$(map_hostname "${HOSTNAME:-$(uname -n)}")${RESET_COLOR}:${DIR_COLOR}${dir}${RESET_COLOR}${branch}]\$ "
 }
 
-# Toggles
-tgit() { export SHOW_GIT_BRANCH=$((1 - SHOW_GIT_BRANCH)); set_prompt; }
-tvenv() { export SHOW_VENV=$((1 - SHOW_VENV)); set_prompt; }
-tdir() { DIR_LENGTH=$([[ "$DIR_LENGTH" == "short" ]] && echo "long" || echo "short"); set_prompt; }
-tem() { export SHOW_EMOJIS=$((1 - SHOW_EMOJIS)); set_prompt; }
+# ------------------------------------------------------------------------------
+# Toggle Functions
+# ------------------------------------------------------------------------------
 
-# Help
-function ph() {
+tgit()  { export SHOW_GIT_BRANCH=$((1 - SHOW_GIT_BRANCH)); set_prompt; }
+tvenv() { export SHOW_VENV=$((1 - SHOW_VENV)); set_prompt; }
+tdir()  { DIR_LENGTH=$([[ "$DIR_LENGTH" == "short" ]] && echo "long" || echo "short"); set_prompt; }
+tem()   { export SHOW_EMOJIS=$((1 - SHOW_EMOJIS)); set_prompt; }
+
+# ------------------------------------------------------------------------------
+# Help Function
+# ------------------------------------------------------------------------------
+
+ph() {
     echo "Prompt customization commands:"
-    echo "  tgit      - Toggle the display of the current git branch in the prompt."
-    echo "  tvenv     - Toggle the display of the current virtual environment in the prompt."
-    echo "  tdir      - Toggle the display of the directory between short (\W) and long (\w) formats."
-    echo "  tem       - Toggle the display of emojis in the prompt."
-    echo "  ph        - Show this help message."
-    echo "  rp        - Reset the prompt."
+    echo "  tgit      - Toggle git branch display in prompt"
+    echo "  tvenv     - Toggle virtual environment display in prompt"
+    echo "  tdir      - Toggle directory format (short \\W / long \\w)"
+    echo "  tem       - Toggle emoji display in prompt"
+    echo "  ph        - Show this help message"
+    echo "  rp        - Reset/refresh the prompt"
 }

@@ -1,7 +1,21 @@
-export SHOW_GIT_BRANCH=0
-export SHOW_VENV=1
-export SHOW_EMOJIS=0
-export DIR_LENGTH="short"
+# ==============================================================================
+# SHARED ENVIRONMENT EXPORTS
+# ==============================================================================
+# Environment variables shared across all systems/specialisations.
+# Machine-specific exports should be defined in:
+#   - secrets/bash_secrets.sh (for sensitive values)
+#   - specialisations/bashrc_* (for machine-specific configs)
+# ==============================================================================
 
-# Set default CMake generator
+# ------------------------------------------------------------------------------
+# Prompt Configuration (used by bash_prompt)
+# ------------------------------------------------------------------------------
+export SHOW_GIT_BRANCH=0       # Toggle: show git branch in prompt (0=off, 1=on)
+export SHOW_VENV=1             # Toggle: show conda/venv in prompt (0=off, 1=on)
+export SHOW_EMOJIS=0           # Toggle: show emojis in prompt (0=off, 1=on)
+export DIR_LENGTH="short"      # Directory display: "short" (\W) or "long" (\w)
+
+# ------------------------------------------------------------------------------
+# Build Tools
+# ------------------------------------------------------------------------------
 export CMAKE_GENERATOR="${CMAKE_GENERATOR:-Ninja}"

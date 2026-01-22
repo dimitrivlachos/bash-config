@@ -1,8 +1,26 @@
-# SSH Management Functions and Configuration
-# All SSH functionality is consolidated here for better organization
-# Includes: config management, master connections, agent management, and helpers
+# ==============================================================================
+# SSH MANAGEMENT
+# ==============================================================================
+# Comprehensive SSH management for bash-config including:
+#   - SSH config management (symlink to secrets)
+#   - SSH agent management (setup, cleanup, status)
+#   - Master connection management (multiplexing)
+#   - Daily work setup helper
+#   - Diamond SOCKS proxy support
+#
+# Quick Commands:
+#   ssh-setup     - Full work day setup (config + agent + master connections)
+#   ssh-status    - Show active master connections
+#   ssh-help      - Detailed help for all SSH functions
+#
+# All functions are prefixed with bc_ for consistency.
+# ==============================================================================
 
-# SSH configuration management via symlink to secrets
+# ==============================================================================
+# SSH CONFIG MANAGEMENT
+# ==============================================================================
+
+# Setup SSH config via symlink to secrets
 bc_setup_ssh_config() {
     local ssh_dir="$HOME/.ssh"
     local config_file="$ssh_dir/config"
@@ -77,6 +95,10 @@ bc_check_ssh_config() {
     return 0
 }
 
+# ==============================================================================
+# MASTER CONNECTION MANAGEMENT
+# ==============================================================================
+
 # Simple master connection management
 bc_ssh_master_start() {
     local host="$1"
@@ -109,7 +131,11 @@ bc_ssh_master_status() {
     fi
 }
 
-# Daily work setup - this is your main function
+# ==============================================================================
+# DAILY WORK SETUP
+# ==============================================================================
+
+# Daily work setup - main function for setting up SSH for work
 bc_ssh_workday_setup() {
     local start_proxy="${1:-false}"
     local proxy_port="${2:-8080}"
@@ -153,7 +179,9 @@ bc_ssh_workday_setup() {
     fi
 }
 
-# SSH Agent Management Functions
+# ==============================================================================
+# SSH AGENT MANAGEMENT
+# ==============================================================================
 
 # Check if a specific SSH key is loaded in the agent
 bc_is_ssh_key_loaded() {
@@ -454,6 +482,10 @@ bc_setup_ssh_agent() {
     fi
 }
 
+# ==============================================================================
+# CONVENIENCE WRAPPERS AND ALIASES
+# ==============================================================================
+
 # Convenience wrapper functions
 bc_cleanup_current_ssh_agent() {
     local agent_file="${1:-$HOME/.ssh-agent-info}"
@@ -553,6 +585,10 @@ bc_list_ssh_agents() {
     fi
 }
 
+# ==============================================================================
+# HELP SYSTEM
+# ==============================================================================
+
 # SSH agent management help
 bc_ssh_help() {
     echo -e "${BC_COLOR_CYAN}🔑 SSH Management Help:${BC_COLOR_RESET}"
@@ -609,6 +645,10 @@ bc_ssh_help() {
     echo -e "  • Cleanup functions prioritize safety over convenience"
 }
 
+# ==============================================================================
+# DIAMOND-SPECIFIC PROXY FUNCTIONS
+# ==============================================================================
+
 # Diamond SOCKS proxy functions (for accessing Diamond intranet from local machine)
 # Start Diamond SOCKS proxy for web browsing
 diamond-proxy() {
@@ -626,7 +666,11 @@ diamond-proxy-list() {
     pgrep -af "ssh.*diamond" 2>/dev/null || echo "No active Diamond SSH connections found"
 }
 
-# Simple aliases
+# ==============================================================================
+# QUICK ALIASES
+# ==============================================================================
+
+# Simple aliases for common operations
 alias ssh-setup='bc_ssh_workday_setup proxy'
 alias ssh-setup-only='bc_ssh_workday_setup false'
 alias ssh-status='bc_ssh_master_status'

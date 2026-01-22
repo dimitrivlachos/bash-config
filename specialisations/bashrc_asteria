@@ -1,15 +1,34 @@
-# Raspberry Pi / Home Server specific configuration
+# ==============================================================================
+# ASTERIA SPECIALISATION
+# ==============================================================================
+# Raspberry Pi home server configuration.
+# Provides:
+#   - Pi-style prompt (green/blue colors)
+#   - Package management (apt)
+#   - Docker shortcuts
+#   - Pi system monitoring (temp, throttle, voltage, memory)
+#   - Service management
+#   - Network monitoring
+#   - Fastfetch auto-update
+#   - Detailed help system (asteria-help / ah)
+# ==============================================================================
 
-# Use Raspberry Pi OS default color scheme 
-# Set prompt style to use Pi's nice green/blue colors
+# ------------------------------------------------------------------------------
+# Prompt Style
+# ------------------------------------------------------------------------------
+# Use Raspberry Pi OS default color scheme (green user@host, blue path)
 export BASH_PROMPT_STYLE="pi"
 
-# Package management (Raspberry Pi OS/Debian)
+# ------------------------------------------------------------------------------
+# Package Management
+# ------------------------------------------------------------------------------
 alias update='sudo apt update && sudo apt upgrade'
 alias cleanup='sudo apt autoremove && sudo apt autoclean'
 alias full-update='update && cleanup'
 
-# Docker shortcuts
+# ------------------------------------------------------------------------------
+# Docker Shortcuts
+# ------------------------------------------------------------------------------
 alias dps='docker compose ps'
 alias dpsa='docker compose ps -a'
 alias dlog='docker compose logs -f'
@@ -20,37 +39,47 @@ alias drm='docker rm $(docker ps -aq)'
 alias dprune='docker system prune -f'
 alias dimages='docker images'
 
-# System monitoring for Pi
-alias temp='vcgencmd measure_temp'  # Pi-specific temperature check
-alias throttle='vcgencmd get_throttled'  # Check throttling status
-alias voltage='vcgencmd measure_volts'  # Check power supply
-alias mem='vcgencmd get_mem arm gpu'  # Memory split info
+# ------------------------------------------------------------------------------
+# Pi System Monitoring
+# ------------------------------------------------------------------------------
+alias temp='vcgencmd measure_temp'
+alias throttle='vcgencmd get_throttled'
+alias voltage='vcgencmd measure_volts'
+alias mem='vcgencmd get_mem arm gpu'
 
-# Watch temperature with optional interval (defaults to 2 seconds)
+# Watch temperature with optional interval (default: 2 seconds)
 watch-temp() {
     local interval="${1:-2}"
     watch -n "$interval" 'vcgencmd measure_temp'
 }
 
-# Service management
+# ------------------------------------------------------------------------------
+# Service Management
+# ------------------------------------------------------------------------------
 alias services='sudo systemctl status'
 alias logs='sudo journalctl -f'
 alias restart-service='sudo systemctl restart'
 alias enable-service='sudo systemctl enable'
 alias disable-service='sudo systemctl disable'
 
-# Network monitoring
+# ------------------------------------------------------------------------------
+# Network Monitoring
+# ------------------------------------------------------------------------------
 alias ports='sudo netstat -tulpn'
 alias iptables-list='sudo iptables -L -n -v'
 alias connections='sudo ss -tulpn'
 
-# Home server shortcuts
+# ------------------------------------------------------------------------------
+# Home Server Utilities
+# ------------------------------------------------------------------------------
 alias htop='htop'
 alias iotop='sudo iotop'
 alias disk-usage='df -h'
 alias free-mem='free -h'
 
-# Set fastfetch config for Pi
+# ------------------------------------------------------------------------------
+# Fastfetch Configuration
+# ------------------------------------------------------------------------------
 export FASTFETCH_CONFIG="$BASH_CONFIG_DIR/configs/fastfetch_asteria.jsonc"
 
 # Smart fastfetch update function
@@ -115,61 +144,65 @@ update-fastfetch() {
 alias full-update='update && cleanup && update-fastfetch'
 alias update-all='full-update'
 
-# Asteria help function
+# ------------------------------------------------------------------------------
+# Help System
+# ------------------------------------------------------------------------------
 asteria-help() {
     echo -e "\n\033[1;32m🍓 Asteria (Raspberry Pi) Commands:\033[0m"
     echo
     echo -e "\033[1;33mPackage Management:\033[0m"
-    echo "  update          - Update package lists and upgrade all packages"
-    echo "  cleanup         - Remove unused packages and clean package cache"
-    echo "  full-update     - Complete system update (update + cleanup + fastfetch)"
-    echo "  update-all      - Alias for full-update"
-    echo "  update-fastfetch- Check and update fastfetch to latest version"
+    echo "  update           - Update package lists and upgrade all packages"
+    echo "  cleanup          - Remove unused packages and clean package cache"
+    echo "  full-update      - Complete system update (update + cleanup + fastfetch)"
+    echo "  update-fastfetch - Check and update fastfetch to latest version"
     echo
     echo -e "\033[1;34mDocker Commands:\033[0m"
-    echo "  dps             - Show running containers (docker ps)"
-    echo "  dpsa            - Show all containers (docker ps -a)"
-    echo "  dlog            - Follow container logs (docker logs -f)"
-    echo "  dup             - Start services (docker-compose up -d)"
-    echo "  ddown           - Stop services (docker-compose down)"
-    echo "  dstop           - Stop all running containers"
-    echo "  drm             - Remove all containers"
-    echo "  dprune          - Clean up Docker system"
-    echo "  dimages         - List Docker images"
+    echo "  dps              - Show running containers"
+    echo "  dpsa             - Show all containers"
+    echo "  dlog             - Follow container logs"
+    echo "  dup              - Start services (docker compose up -d)"
+    echo "  ddown            - Stop services (docker compose down)"
+    echo "  dstop            - Stop all running containers"
+    echo "  drm              - Remove all containers"
+    echo "  dprune           - Clean up Docker system"
+    echo "  dimages          - List Docker images"
     echo
     echo -e "\033[1;35mPi System Monitoring:\033[0m"
-    echo "  temp            - Show CPU temperature"
-    echo "  watch-temp      - Watch temperature updates (default 2s, custom: watch-temp 1)"
-    echo "  throttle        - Check throttling status"
-    echo "  voltage         - Check power supply voltage"
-    echo "  mem             - Show GPU/ARM memory split"
-    echo "  htop            - Interactive process viewer"
-    echo "  iotop           - I/O usage monitor (requires sudo)"
-    echo "  disk-usage      - Show disk space usage"
-    echo "  free-mem        - Show memory usage"
+    echo "  temp             - Show CPU temperature"
+    echo "  watch-temp [N]   - Watch temperature updates (default 2s interval)"
+    echo "  throttle         - Check throttling status"
+    echo "  voltage          - Check power supply voltage"
+    echo "  mem              - Show GPU/ARM memory split"
+    echo "  htop             - Interactive process viewer"
+    echo "  iotop            - I/O usage monitor (requires sudo)"
+    echo "  disk-usage       - Show disk space usage"
+    echo "  free-mem         - Show memory usage"
     echo
     echo -e "\033[1;36mService Management:\033[0m"
-    echo "  services        - Show systemd service status"
-    echo "  logs            - Follow system logs"
-    echo "  restart-service - Restart a systemd service"
-    echo "  enable-service  - Enable a systemd service"
-    echo "  disable-service - Disable a systemd service"
+    echo "  services         - Show systemd service status"
+    echo "  logs             - Follow system logs"
+    echo "  restart-service  - Restart a systemd service"
+    echo "  enable-service   - Enable a systemd service"
+    echo "  disable-service  - Disable a systemd service"
     echo
     echo -e "\033[1;37mNetwork Monitoring:\033[0m"
-    echo "  ports           - Show open ports and listening services"
-    echo "  iptables-list   - Show firewall rules"
-    echo "  connections     - Show network connections"
+    echo "  ports            - Show open ports and listening services"
+    echo "  iptables-list    - Show firewall rules"
+    echo "  connections      - Show network connections"
     echo
-    echo -e "\033[1;90mOther:\033[0m"
-    echo "  asteria-help    - Show this help message"
-    echo "  ph              - Prompt customization help"
+    echo -e "\033[1;90mHelp:\033[0m"
+    echo "  asteria-help / ah - Show this help message"
+    echo "  bc_help           - Show bash-config help"
+    echo "  ph                - Prompt customization help"
     echo
 }
 
-# Alias for convenience
+# Shortcut alias for help
 alias ah='asteria-help'
 
-# Pi-specific environment variables (examples - uncomment/modify as needed)
+# ------------------------------------------------------------------------------
+# Optional Environment Variables (uncomment/modify as needed)
+# ------------------------------------------------------------------------------
 # export PI_USER="pi"
 # export SERVER_DIR="/home/pi/servers"
 # export DOCKER_COMPOSE_DIR="/home/pi/docker-compose"

@@ -1,16 +1,37 @@
-# System update helpers for Arch
+# ==============================================================================
+# FROSTPAW SPECIALISATION
+# ==============================================================================
+# Arch Linux home workstation configuration.
+# Provides:
+#   - System update helpers (pacman/yay)
+#   - Tailscale VPN management
+#   - Fastfetch configuration
+#   - Mamba/micromamba compatibility
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# System Update Helpers
+# ------------------------------------------------------------------------------
 alias update='sudo pacman -Syu && yay -Sua'
 alias cleanup='sudo pacman -Rns $(pacman -Qdtq) 2>/dev/null || echo "No orphan packages."'
 alias full-update='update && cleanup'
 
-# Tailscale connection management
+# ------------------------------------------------------------------------------
+# Tailscale VPN Management
+# ------------------------------------------------------------------------------
 alias tsdown='sudo tailscale down && echo "✅ Tailscale disconnected"'
 alias tsup='sudo tailscale up --accept-routes --accept-dns --ssh && echo "✅ Tailscale connected"'
 
+# ------------------------------------------------------------------------------
+# Fastfetch Configuration
+# ------------------------------------------------------------------------------
 # Not exporting FASTFETCH_BIN as the binary is already in the PATH
 export FASTFETCH_CONFIG="$BASH_CONFIG_DIR/configs/fastfetch_frostpaw.jsonc"
 
-# If mamba is not installed, alias to micromamba is created
+# ------------------------------------------------------------------------------
+# Mamba Compatibility
+# ------------------------------------------------------------------------------
+# If mamba is not installed, alias to micromamba
 if ! command -v mamba &>/dev/null; then
   alias mamba='micromamba'
 fi

@@ -1,12 +1,31 @@
-# bashrc_core
+# ==============================================================================
+# BASHRC CORE - Main Orchestrator
+# ==============================================================================
+# Central configuration loader for bash-config system.
+# This file is typically symlinked to ~/.bashrc_core and sourced from ~/.bashrc.
+#
+# Load Order:
+#   1. secrets/bash_secrets.sh  - Sensitive credentials (gitignored)
+#   2. bash_aliases             - Shared aliases
+#   3. bash_exports             - Shared environment variables
+#   4. bash_prompt              - Prompt configuration
+#   5. bash_tools               - Utility functions
+#   6. bash_ssh                 - SSH management
+#   7. bash_history             - History management
+#   8. specialisations/bashrc_* - Machine-specific configuration
+#
+# Environment Variables:
+#   BASH_SPECIALISATION  - Set in ~/.bashrc to select specialisation
+#   BASH_CONFIG_DIR      - Auto-detected directory of this config
+#   BASH_CONFIG_DEBUG    - Set to "true" to enable debug logging
+# ==============================================================================
 
 export BASH_CONFIG_VERSION="2.0.0"
 
-# export BASH_CONFIG_DEBUG="${BASH_CONFIG_DEBUG:-true}"
-
-# export BASH_CONFIG_DIR="${BASH_CONFIG_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
-
-# Resolve the real path of this script (even if symlinked)
+# ==============================================================================
+# PATH RESOLUTION
+# ==============================================================================
+# Resolve the real path of this script (handles symlinks)
 __realpath() {
   local path="$1"
   while [ -L "$path" ]; do
@@ -24,7 +43,10 @@ if [[ ! -d "$BASH_CONFIG_DIR" ]]; then
   return 1 2>/dev/null || exit 1
 fi
 
-# Load shared components with error checking
+# ==============================================================================
+# MODULE LOADER
+# ==============================================================================
+# Source a file if it exists, with optional description for warnings
 bc_source_if_exists() {
   local file="$1"
   local description="${2:-$file}"
@@ -35,6 +57,7 @@ bc_source_if_exists() {
   fi
 }
 
+# Load core modules
 bc_source_if_exists "$BASH_CONFIG_DIR/secrets/bash_secrets.sh" "Secrets file"
 bc_source_if_exists "$BASH_CONFIG_DIR/bash_aliases" "Aliases"
 bc_source_if_exists "$BASH_CONFIG_DIR/bash_exports" "Exports"
@@ -43,14 +66,15 @@ bc_source_if_exists "$BASH_CONFIG_DIR/bash_tools" "Tools and functions"
 bc_source_if_exists "$BASH_CONFIG_DIR/bash_ssh" "SSH management"
 bc_source_if_exists "$BASH_CONFIG_DIR/bash_history" "History management"
 
-# Load specialisation
+# ==============================================================================
+# SPECIALISATION LOADER
+# ==============================================================================
 if [[ -n "${BASH_SPECIALISATION:-}" ]]; then
   spec_file="$BASH_CONFIG_DIR/specialisations/bashrc_$BASH_SPECIALISATION"
   case "$BASH_SPECIALISATION" in
     frostpaw|diamond|asteria)
       if [[ -f "$spec_file" ]]; then
         source "$spec_file"
-        # echo "[INFO] Loaded specialisation: $BASH_SPECIALISATION" >&2
       else
         echo "[ERROR] Specialisation file not found: $spec_file" >&2
       fi
@@ -62,23 +86,24 @@ if [[ -n "${BASH_SPECIALISATION:-}" ]]; then
   esac
 fi
 
-# Initial prompt
+# ==============================================================================
+# INITIALIZATION
+# ==============================================================================
+# Initialize prompt
 set_prompt
 PROMPT_COMMAND=set_prompt
 
-# Show fastfetch on login
-# [[ $- == *i* ]] → only interactive shells
+# Interactive shell features
 if [[ $- == *i* ]]; then
+  # Show system info on login
   bc_ff
   
-  # Check for updates (but only once per day to avoid slowdown)
-  # Only check if we have a real terminal (not in scripts/pipes/ssh commands)
+  # Daily update check (only on real terminals, not scripts/pipes)
   if [[ -t 0 ]]; then
     update_check_file="$BASH_CONFIG_DIR/.last_update_check"
     current_date=$(date +%Y%m%d)
     
     if [[ ! -f "$update_check_file" ]] || [[ "$(cat "$update_check_file" 2>/dev/null)" != "$current_date" ]]; then
-      # Check for updates synchronously (once per day, so acceptable delay)
       bc_check_updates silent
       check_result=$?
       if [[ $check_result -eq 2 ]]; then
