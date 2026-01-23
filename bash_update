@@ -46,7 +46,7 @@ _update_header() {
     
     echo -e "\n${UPDATE_COLOR_BOLD}${UPDATE_COLOR_CYAN}${line}${UPDATE_COLOR_RESET}"
     echo -e "${UPDATE_COLOR_BOLD}${UPDATE_COLOR_CYAN}  $1${UPDATE_COLOR_RESET}"
-    echo -e "${UPDATE_COLOR_BOLD}${UPDATE_COLOR_CYAN}${line}${UPDATE_COLOR_RESET}\n"
+    echo -e "${UPDATE_COLOR_BOLD}${UPDATE_COLOR_CYAN}${line}${UPDATE_COLOR_RESET}"
 }
 
 _update_section() {
