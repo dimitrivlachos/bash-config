@@ -357,7 +357,7 @@ update() {
     local os_type
     os_type=$(_detect_os)
     
-    _update_header "🔄 System Update - $(_get_os_pretty_name)"
+    _update_header "🔄 System Update - ${UPDATE_COLOR_BOLD}$(_get_os_pretty_name)${UPDATE_COLOR_RESET}"
     
     case "$os_type" in
         arch)
@@ -410,7 +410,7 @@ cleanup() {
     local os_type
     os_type=$(_detect_os)
     
-    _update_header "🧹 System Cleanup - $(_get_os_pretty_name)"
+    _update_header "🧹 System Cleanup - ${UPDATE_COLOR_BOLD}$(_get_os_pretty_name)${UPDATE_COLOR_RESET}"
     
     case "$os_type" in
         arch)
@@ -447,7 +447,7 @@ full-update() {
     local os_type
     os_type=$(_detect_os)
     
-    _update_header "🚀 Full System Update - $(_get_os_pretty_name)"
+    _update_header "🚀 Full System Update - ${UPDATE_COLOR_BOLD}$(_get_os_pretty_name)${UPDATE_COLOR_RESET}"
     _update_info "This will update all packages and perform cleanup"
     
     # Run update
