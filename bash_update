@@ -79,6 +79,13 @@ _update_skip() {
     echo -e "${UPDATE_COLOR_MAGENTA}  ⊘ $1${UPDATE_COLOR_RESET}"
 }
 
+_update_command() {
+    echo -e "${UPDATE_COLOR_CYAN}  ▶ Command: ${UPDATE_COLOR_BOLD}$1${UPDATE_COLOR_RESET}"
+    if [[ -n "$2" ]]; then
+        echo -e "${UPDATE_COLOR_WHITE}    $2${UPDATE_COLOR_RESET}"
+    fi
+}
+
 # ==============================================================================
 # OS DETECTION
 # ==============================================================================
@@ -146,6 +153,7 @@ _detect_aur_helper() {
 _update_arch_pacman() {
     _update_section "📦 Pacman - Official Repositories"
     _update_info "Synchronising package databases and upgrading..."
+    _update_command "sudo pacman -Syu" "-S: install packages | -y: refresh database | -u: upgrade packages"
     
     if sudo pacman -Syu; then
         _update_success "Pacman update complete"
@@ -172,6 +180,7 @@ _update_arch_aur() {
     
     case "$aur_helper" in
         yay)
+            _update_command "yay -Sua" "-S: install packages | -u: upgrade packages | -a: AUR packages only"
             if yay -Sua; then
                 _update_success "AUR update complete"
                 return 0
@@ -181,6 +190,7 @@ _update_arch_aur() {
             fi
             ;;
         paru)
+            _update_command "paru -Sua" "-S: install packages | -u: upgrade packages | -a: AUR packages only"
             if paru -Sua; then
                 _update_success "AUR update complete"
                 return 0
@@ -208,6 +218,7 @@ _cleanup_arch() {
         echo -e "    ${UPDATE_COLOR_YELLOW}• $pkg${UPDATE_COLOR_RESET}"
     done
     
+    _update_command "sudo pacman -Rns <packages>" "-R: remove packages | -n: remove config files | -s: remove dependencies"
     if sudo pacman -Rns $orphans; then
         _update_success "Orphan packages removed"
         return 0
@@ -224,6 +235,7 @@ _update_debian_apt() {
     _update_section "📦 APT - Package Updates"
     
     _update_info "Updating package lists..."
+    _update_command "sudo apt update" "Update package lists from repositories"
     if ! sudo apt update; then
         _update_error "Failed to update package lists"
         return 1
@@ -231,6 +243,7 @@ _update_debian_apt() {
     _update_success "Package lists updated"
     
     _update_info "Upgrading packages..."
+    _update_command "sudo apt upgrade -y" "-y: automatic yes to prompts | upgrade: install available package upgrades"
     if sudo apt upgrade -y; then
         _update_success "APT upgrade complete"
         return 0
@@ -244,6 +257,7 @@ _cleanup_debian() {
     _update_section "🧹 Cleanup - APT Maintenance"
     
     _update_info "Removing unused packages..."
+    _update_command "sudo apt autoremove -y" "-y: automatic yes | autoremove: remove unused packages and dependencies"
     if ! sudo apt autoremove -y; then
         _update_warn "Autoremove encountered issues"
     else
@@ -251,6 +265,7 @@ _cleanup_debian() {
     fi
     
     _update_info "Cleaning package cache..."
+    _update_command "sudo apt autoclean" "Remove old package files from cache (partial clean)"
     if sudo apt autoclean; then
         _update_success "Package cache cleaned"
         return 0
