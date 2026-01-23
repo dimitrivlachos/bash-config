@@ -1,0 +1,501 @@
+# ==============================================================================
+# UNIFIED SYSTEM UPDATE UTILITY
+# ==============================================================================
+# Cross-platform update management with clear, coloured output.
+# Automatically detects OS and uses appropriate package managers.
+#
+# Supported Systems:
+#   - Arch Linux (pacman + AUR helpers: yay, paru)
+#   - Debian/Ubuntu (apt)
+#   - Raspberry Pi OS (apt + optional fastfetch updates)
+#   - RHEL/CentOS/Fedora (dnf/yum) - detection only, no auto-update
+#
+# Usage: update, cleanup, full-update
+# ==============================================================================
+
+# ==============================================================================
+# COLOUR DEFINITIONS
+# ==============================================================================
+declare -r UPDATE_COLOR_RED='\033[0;31m'
+declare -r UPDATE_COLOR_GREEN='\033[0;32m'
+declare -r UPDATE_COLOR_YELLOW='\033[0;33m'
+declare -r UPDATE_COLOR_BLUE='\033[0;34m'
+declare -r UPDATE_COLOR_MAGENTA='\033[0;35m'
+declare -r UPDATE_COLOR_CYAN='\033[0;36m'
+declare -r UPDATE_COLOR_WHITE='\033[0;37m'
+declare -r UPDATE_COLOR_BOLD='\033[1m'
+declare -r UPDATE_COLOR_RESET='\033[0m'
+
+# ==============================================================================
+# LOGGING FUNCTIONS
+# ==============================================================================
+_update_header() {
+    echo -e "\n${UPDATE_COLOR_BOLD}${UPDATE_COLOR_CYAN}══════════════════════════════════════════════════════════════${UPDATE_COLOR_RESET}"
+    echo -e "${UPDATE_COLOR_BOLD}${UPDATE_COLOR_CYAN}  $1${UPDATE_COLOR_RESET}"
+    echo -e "${UPDATE_COLOR_BOLD}${UPDATE_COLOR_CYAN}══════════════════════════════════════════════════════════════${UPDATE_COLOR_RESET}\n"
+}
+
+_update_section() {
+    echo -e "\n${UPDATE_COLOR_BOLD}${UPDATE_COLOR_BLUE}▶ $1${UPDATE_COLOR_RESET}"
+    echo -e "${UPDATE_COLOR_BLUE}──────────────────────────────────────────────────────────────${UPDATE_COLOR_RESET}"
+}
+
+_update_info() {
+    echo -e "${UPDATE_COLOR_WHITE}  ℹ $1${UPDATE_COLOR_RESET}"
+}
+
+_update_success() {
+    echo -e "${UPDATE_COLOR_GREEN}  ✓ $1${UPDATE_COLOR_RESET}"
+}
+
+_update_warn() {
+    echo -e "${UPDATE_COLOR_YELLOW}  ⚠ $1${UPDATE_COLOR_RESET}"
+}
+
+_update_error() {
+    echo -e "${UPDATE_COLOR_RED}  ✗ $1${UPDATE_COLOR_RESET}"
+}
+
+_update_skip() {
+    echo -e "${UPDATE_COLOR_MAGENTA}  ⊘ $1${UPDATE_COLOR_RESET}"
+}
+
+# ==============================================================================
+# OS DETECTION
+# ==============================================================================
+_detect_os() {
+    if [[ -f /etc/os-release ]]; then
+        # shellcheck source=/dev/null
+        source /etc/os-release
+        case "$ID" in
+            arch|manjaro|endeavouros)
+                echo "arch"
+                ;;
+            debian|ubuntu|linuxmint|pop)
+                echo "debian"
+                ;;
+            raspbian)
+                echo "raspbian"
+                ;;
+            rhel|centos|fedora|rocky|almalinux)
+                echo "rhel"
+                ;;
+            *)
+                # Check for derivatives
+                if [[ "$ID_LIKE" == *"arch"* ]]; then
+                    echo "arch"
+                elif [[ "$ID_LIKE" == *"debian"* ]]; then
+                    echo "debian"
+                elif [[ "$ID_LIKE" == *"rhel"* || "$ID_LIKE" == *"fedora"* ]]; then
+                    echo "rhel"
+                else
+                    echo "unknown"
+                fi
+                ;;
+        esac
+    else
+        echo "unknown"
+    fi
+}
+
+_get_os_pretty_name() {
+    if [[ -f /etc/os-release ]]; then
+        # shellcheck source=/dev/null
+        source /etc/os-release
+        echo "${PRETTY_NAME:-Unknown OS}"
+    else
+        echo "Unknown OS"
+    fi
+}
+
+# ==============================================================================
+# AUR HELPER DETECTION
+# ==============================================================================
+_detect_aur_helper() {
+    if command -v yay &>/dev/null; then
+        echo "yay"
+    elif command -v paru &>/dev/null; then
+        echo "paru"
+    else
+        echo ""
+    fi
+}
+
+# ==============================================================================
+# ARCH LINUX UPDATE FUNCTIONS
+# ==============================================================================
+_update_arch_pacman() {
+    _update_section "📦 Pacman - Official Repositories"
+    _update_info "Synchronising package databases and upgrading..."
+    
+    if sudo pacman -Syu; then
+        _update_success "Pacman update complete"
+        return 0
+    else
+        _update_error "Pacman update failed"
+        return 1
+    fi
+}
+
+_update_arch_aur() {
+    local aur_helper
+    aur_helper=$(_detect_aur_helper)
+    
+    _update_section "🌟 AUR - Arch User Repository"
+    
+    if [[ -z "$aur_helper" ]]; then
+        _update_skip "No AUR helper found (yay/paru not installed)"
+        return 0
+    fi
+    
+    _update_info "Using AUR helper: ${aur_helper}"
+    _update_info "Checking for AUR package updates..."
+    
+    case "$aur_helper" in
+        yay)
+            if yay -Sua; then
+                _update_success "AUR update complete"
+                return 0
+            else
+                _update_error "AUR update failed"
+                return 1
+            fi
+            ;;
+        paru)
+            if paru -Sua; then
+                _update_success "AUR update complete"
+                return 0
+            else
+                _update_error "AUR update failed"
+                return 1
+            fi
+            ;;
+    esac
+}
+
+_cleanup_arch() {
+    _update_section "🧹 Cleanup - Removing Orphaned Packages"
+    
+    local orphans
+    orphans=$(pacman -Qdtq 2>/dev/null)
+    
+    if [[ -z "$orphans" ]]; then
+        _update_success "No orphan packages found"
+        return 0
+    fi
+    
+    _update_info "Found orphan packages:"
+    echo "$orphans" | while read -r pkg; do
+        echo -e "    ${UPDATE_COLOR_YELLOW}• $pkg${UPDATE_COLOR_RESET}"
+    done
+    
+    if sudo pacman -Rns $orphans; then
+        _update_success "Orphan packages removed"
+        return 0
+    else
+        _update_error "Failed to remove orphan packages"
+        return 1
+    fi
+}
+
+# ==============================================================================
+# DEBIAN/UBUNTU UPDATE FUNCTIONS
+# ==============================================================================
+_update_debian_apt() {
+    _update_section "📦 APT - Package Updates"
+    
+    _update_info "Updating package lists..."
+    if ! sudo apt update; then
+        _update_error "Failed to update package lists"
+        return 1
+    fi
+    _update_success "Package lists updated"
+    
+    _update_info "Upgrading packages..."
+    if sudo apt upgrade -y; then
+        _update_success "APT upgrade complete"
+        return 0
+    else
+        _update_error "APT upgrade failed"
+        return 1
+    fi
+}
+
+_cleanup_debian() {
+    _update_section "🧹 Cleanup - APT Maintenance"
+    
+    _update_info "Removing unused packages..."
+    if ! sudo apt autoremove -y; then
+        _update_warn "Autoremove encountered issues"
+    else
+        _update_success "Unused packages removed"
+    fi
+    
+    _update_info "Cleaning package cache..."
+    if sudo apt autoclean; then
+        _update_success "Package cache cleaned"
+        return 0
+    else
+        _update_warn "Autoclean encountered issues"
+        return 1
+    fi
+}
+
+# ==============================================================================
+# RASPBERRY PI SPECIFIC FUNCTIONS
+# ==============================================================================
+_update_raspbian_fastfetch() {
+    _update_section "🚀 Fastfetch - Checking for Updates"
+    
+    if ! command -v fastfetch &>/dev/null; then
+        _update_info "Fastfetch not installed, attempting to install..."
+        local install_new=true
+        local current_version="none"
+    else
+        local current_version
+        current_version=$(fastfetch --version 2>/dev/null | head -n1 | grep -oP '\d+\.\d+\.\d+' | head -n1)
+        local install_new=false
+    fi
+    
+    # Get latest version from GitHub
+    local latest_version
+    latest_version=$(curl -s https://api.github.com/repos/fastfetch-cli/fastfetch/releases/latest 2>/dev/null | grep -oP '"tag_name": "\K[^"]*' | sed 's/^v//')
+    
+    if [[ -z "$latest_version" ]]; then
+        _update_warn "Could not fetch latest fastfetch version from GitHub"
+        return 1
+    fi
+    
+    _update_info "Current version: ${current_version:-not installed}"
+    _update_info "Latest version:  ${latest_version}"
+    
+    if [[ "$current_version" == "$latest_version" ]]; then
+        _update_success "Fastfetch is already up to date"
+        return 0
+    fi
+    
+    _update_info "Downloading fastfetch ${latest_version}..."
+    
+    local temp_file="/tmp/fastfetch-${latest_version}-$(date +%s).deb"
+    local download_url
+    download_url=$(curl -s https://api.github.com/repos/fastfetch-cli/fastfetch/releases/latest 2>/dev/null | grep "browser_download_url.*linux-aarch64.deb" | cut -d '"' -f 4)
+    
+    if [[ -z "$download_url" ]]; then
+        _update_error "Could not find ARM64 download URL"
+        return 1
+    fi
+    
+    if wget -q -O "$temp_file" "$download_url"; then
+        _update_info "Installing fastfetch..."
+        if sudo dpkg -i "$temp_file" && sudo apt install -f -qq; then
+            rm -f "$temp_file"
+            _update_success "Fastfetch updated to ${latest_version}"
+            return 0
+        else
+            rm -f "$temp_file"
+            _update_error "Failed to install fastfetch"
+            return 1
+        fi
+    else
+        rm -f "$temp_file" 2>/dev/null
+        _update_error "Failed to download fastfetch"
+        return 1
+    fi
+}
+
+# ==============================================================================
+# RHEL/CENTOS/FEDORA FUNCTIONS
+# ==============================================================================
+_update_rhel_notice() {
+    _update_section "🏢 RHEL/Enterprise Linux Detected"
+    _update_warn "This appears to be a managed enterprise system"
+    _update_info "System updates should be handled by your system administrator"
+    _update_info "Detected OS: $(_get_os_pretty_name)"
+    return 0
+}
+
+# ==============================================================================
+# MAIN UPDATE FUNCTIONS
+# ==============================================================================
+
+# Primary update function - updates system packages
+update() {
+    local os_type
+    os_type=$(_detect_os)
+    
+    _update_header "🔄 System Update - $(_get_os_pretty_name)"
+    
+    case "$os_type" in
+        arch)
+            _update_arch_pacman
+            local pacman_result=$?
+            _update_arch_aur
+            local aur_result=$?
+            
+            if [[ $pacman_result -eq 0 && $aur_result -eq 0 ]]; then
+                echo -e "\n${UPDATE_COLOR_GREEN}${UPDATE_COLOR_BOLD}✓ All updates completed successfully${UPDATE_COLOR_RESET}\n"
+                return 0
+            else
+                echo -e "\n${UPDATE_COLOR_YELLOW}${UPDATE_COLOR_BOLD}⚠ Updates completed with some issues${UPDATE_COLOR_RESET}\n"
+                return 1
+            fi
+            ;;
+        debian)
+            if _update_debian_apt; then
+                echo -e "\n${UPDATE_COLOR_GREEN}${UPDATE_COLOR_BOLD}✓ All updates completed successfully${UPDATE_COLOR_RESET}\n"
+                return 0
+            else
+                echo -e "\n${UPDATE_COLOR_RED}${UPDATE_COLOR_BOLD}✗ Updates failed${UPDATE_COLOR_RESET}\n"
+                return 1
+            fi
+            ;;
+        raspbian)
+            if _update_debian_apt; then
+                echo -e "\n${UPDATE_COLOR_GREEN}${UPDATE_COLOR_BOLD}✓ All updates completed successfully${UPDATE_COLOR_RESET}\n"
+                return 0
+            else
+                echo -e "\n${UPDATE_COLOR_RED}${UPDATE_COLOR_BOLD}✗ Updates failed${UPDATE_COLOR_RESET}\n"
+                return 1
+            fi
+            ;;
+        rhel)
+            _update_rhel_notice
+            return 0
+            ;;
+        *)
+            _update_error "Unknown operating system"
+            _update_info "Detected: $(_get_os_pretty_name)"
+            _update_info "Please update manually using your system's package manager"
+            return 1
+            ;;
+    esac
+}
+
+# Cleanup function - removes orphaned/unused packages
+cleanup() {
+    local os_type
+    os_type=$(_detect_os)
+    
+    _update_header "🧹 System Cleanup - $(_get_os_pretty_name)"
+    
+    case "$os_type" in
+        arch)
+            if _cleanup_arch; then
+                echo -e "\n${UPDATE_COLOR_GREEN}${UPDATE_COLOR_BOLD}✓ Cleanup completed successfully${UPDATE_COLOR_RESET}\n"
+                return 0
+            else
+                echo -e "\n${UPDATE_COLOR_YELLOW}${UPDATE_COLOR_BOLD}⚠ Cleanup completed with some issues${UPDATE_COLOR_RESET}\n"
+                return 1
+            fi
+            ;;
+        debian|raspbian)
+            if _cleanup_debian; then
+                echo -e "\n${UPDATE_COLOR_GREEN}${UPDATE_COLOR_BOLD}✓ Cleanup completed successfully${UPDATE_COLOR_RESET}\n"
+                return 0
+            else
+                echo -e "\n${UPDATE_COLOR_YELLOW}${UPDATE_COLOR_BOLD}⚠ Cleanup completed with some issues${UPDATE_COLOR_RESET}\n"
+                return 1
+            fi
+            ;;
+        rhel)
+            _update_rhel_notice
+            return 0
+            ;;
+        *)
+            _update_error "Unknown operating system"
+            return 1
+            ;;
+    esac
+}
+
+# Full update - updates and cleans up
+full-update() {
+    local os_type
+    os_type=$(_detect_os)
+    
+    _update_header "🚀 Full System Update - $(_get_os_pretty_name)"
+    _update_info "This will update all packages and perform cleanup"
+    
+    # Run update
+    update
+    local update_result=$?
+    
+    # Run cleanup
+    cleanup
+    local cleanup_result=$?
+    
+    # Raspberry Pi specific: update fastfetch
+    if [[ "$os_type" == "raspbian" ]]; then
+        _update_raspbian_fastfetch
+    fi
+    
+    # Summary
+    _update_header "📊 Update Summary"
+    
+    if [[ $update_result -eq 0 ]]; then
+        _update_success "Package updates: Completed"
+    else
+        _update_error "Package updates: Failed"
+    fi
+    
+    if [[ $cleanup_result -eq 0 ]]; then
+        _update_success "System cleanup: Completed"
+    else
+        _update_warn "System cleanup: Completed with issues"
+    fi
+    
+    if [[ $update_result -eq 0 && $cleanup_result -eq 0 ]]; then
+        echo -e "\n${UPDATE_COLOR_GREEN}${UPDATE_COLOR_BOLD}✓ Full update completed successfully${UPDATE_COLOR_RESET}\n"
+        return 0
+    else
+        echo -e "\n${UPDATE_COLOR_YELLOW}${UPDATE_COLOR_BOLD}⚠ Full update completed with some issues${UPDATE_COLOR_RESET}\n"
+        return 1
+    fi
+}
+
+# Alias for full-update
+update-all() {
+    full-update
+}
+
+# ==============================================================================
+# HELP FUNCTION
+# ==============================================================================
+update-help() {
+    cat << 'EOF'
+═══════════════════════════════════════════════════════════════════════════════
+📚 UNIFIED UPDATE SYSTEM - COMMAND REFERENCE
+═══════════════════════════════════════════════════════════════════════════════
+
+🚀 COMMANDS
+  update          Update system packages
+  cleanup         Remove orphaned/unused packages
+  full-update     Complete update + cleanup (+ fastfetch on Pi)
+  update-all      Alias for full-update
+  update-help     Show this help message
+
+📦 SUPPORTED SYSTEMS
+  Arch Linux      pacman + AUR (yay/paru)
+  Debian/Ubuntu   apt
+  Raspberry Pi    apt + fastfetch auto-update
+  RHEL/CentOS     Detection only (managed systems)
+
+🎨 OUTPUT COLOURS
+  Blue            Section headers
+  White           Informational messages
+  Green           Success messages
+  Yellow          Warnings
+  Red             Errors
+  Magenta         Skipped operations
+
+💡 EXAMPLES
+  update          # Update packages only
+  cleanup         # Clean up orphaned packages
+  full-update     # Do everything
+
+═══════════════════════════════════════════════════════════════════════════════
+EOF
+}
+
+# Shorthand alias
+alias uh='update-help'

@@ -4,12 +4,10 @@
 # Raspberry Pi home server configuration.
 # Provides:
 #   - Pi-style prompt (green/blue colors)
-#   - Package management (apt)
 #   - Docker shortcuts
 #   - Pi system monitoring (temp, throttle, voltage, memory)
 #   - Service management
 #   - Network monitoring
-#   - Fastfetch auto-update
 #   - Detailed help system (asteria-help / ah)
 # ==============================================================================
 
@@ -18,13 +16,6 @@
 # ------------------------------------------------------------------------------
 # Use Raspberry Pi OS default color scheme (green user@host, blue path)
 export BASH_PROMPT_STYLE="pi"
-
-# ------------------------------------------------------------------------------
-# Package Management
-# ------------------------------------------------------------------------------
-alias update='sudo apt update && sudo apt upgrade'
-alias cleanup='sudo apt autoremove && sudo apt autoclean'
-alias full-update='update && cleanup'
 
 # ------------------------------------------------------------------------------
 # Docker Shortcuts
@@ -82,68 +73,6 @@ alias free-mem='free -h'
 # ------------------------------------------------------------------------------
 export FASTFETCH_CONFIG="$BASH_CONFIG_DIR/configs/fastfetch_asteria.jsonc"
 
-# Smart fastfetch update function
-update-fastfetch() {
-    echo "Checking fastfetch versions..."
-    
-    # Check if fastfetch is installed
-    if ! command -v fastfetch &>/dev/null; then
-        echo "Fastfetch not installed. Installing latest version..."
-        local install_latest=true
-    else
-        # Get current version
-        local current_version=$(fastfetch --version 2>/dev/null | head -n1 | grep -oP '\d+\.\d+\.\d+' | head -n1)
-        
-        # Get latest version from GitHub API
-        local latest_version=$(curl -s https://api.github.com/repos/fastfetch-cli/fastfetch/releases/latest | grep -oP '"tag_name": "\K[^"]*' | sed 's/^v//')
-        
-        if [[ -z "$current_version" || -z "$latest_version" ]]; then
-            echo "Could not determine versions. Installing anyway..."
-            local install_latest=true
-        elif [[ "$current_version" == "$latest_version" ]]; then
-            echo "Fastfetch is already up to date (v$current_version)"
-            return 0
-        else
-            echo "Current version: v$current_version"
-            echo "Latest version:  v$latest_version"
-            echo "Updating fastfetch..."
-            local install_latest=true
-        fi
-    fi
-    
-    if [[ "$install_latest" == "true" ]]; then
-        # Download latest ARM64 release to /tmp (gets cleared on reboot)
-        local temp_file="/tmp/fastfetch-latest-$(date +%s).deb"
-        local latest_url=$(curl -s https://api.github.com/repos/fastfetch-cli/fastfetch/releases/latest | grep "browser_download_url.*linux-aarch64.deb" | cut -d '"' -f 4)
-        
-        if [[ -z "$latest_url" ]]; then
-            echo "Could not find download URL. Aborting."
-            return 1
-        fi
-        
-        echo "Downloading fastfetch..."
-        if wget -q -O "$temp_file" "$latest_url"; then
-            echo "Installing fastfetch..."
-            sudo dpkg -i "$temp_file"
-            sudo apt install -f -qq
-            rm -f "$temp_file"
-            echo "Fastfetch updated successfully!"
-            
-            # Show new version
-            local new_version=$(fastfetch --version 2>/dev/null | head -n1 | grep -oP '\d+\.\d+\.\d+' | head -n1)
-            [[ -n "$new_version" ]] && echo "New version: v$new_version"
-        else
-            echo "Download failed. Cleaning up..."
-            rm -f "$temp_file"
-            return 1
-        fi
-    fi
-}
-
-# Enhanced update aliases
-alias full-update='update && cleanup && update-fastfetch'
-alias update-all='full-update'
-
 # ------------------------------------------------------------------------------
 # Help System
 # ------------------------------------------------------------------------------
@@ -151,10 +80,10 @@ asteria-help() {
     echo -e "\n\033[1;32m🍓 Asteria (Raspberry Pi) Commands:\033[0m"
     echo
     echo -e "\033[1;33mPackage Management:\033[0m"
-    echo "  update           - Update package lists and upgrade all packages"
+    echo "  update           - Update system packages (with coloured output)"
     echo "  cleanup          - Remove unused packages and clean package cache"
     echo "  full-update      - Complete system update (update + cleanup + fastfetch)"
-    echo "  update-fastfetch - Check and update fastfetch to latest version"
+    echo "  update-help      - Show detailed update system help"
     echo
     echo -e "\033[1;34mDocker Commands:\033[0m"
     echo "  dps              - Show running containers"

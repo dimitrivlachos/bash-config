@@ -3,18 +3,10 @@
 # ==============================================================================
 # Arch Linux home workstation configuration.
 # Provides:
-#   - System update helpers (pacman/yay)
 #   - Tailscale VPN management
 #   - Fastfetch configuration
 #   - Mamba/micromamba compatibility
 # ==============================================================================
-
-# ------------------------------------------------------------------------------
-# System Update Helpers
-# ------------------------------------------------------------------------------
-alias update='sudo pacman -Syu && yay -Sua'
-alias cleanup='sudo pacman -Rns $(pacman -Qdtq) 2>/dev/null || echo "No orphan packages."'
-alias full-update='update && cleanup'
 
 # ------------------------------------------------------------------------------
 # Tailscale VPN Management
