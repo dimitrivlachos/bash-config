@@ -29,15 +29,34 @@ declare -r UPDATE_COLOR_RESET='\033[0m'
 # ==============================================================================
 # LOGGING FUNCTIONS
 # ==============================================================================
+_update_get_width() {
+    local width
+    width=$(tput cols 2>/dev/null || echo 80)
+    # Ensure minimum width of 40 and maximum of 120
+    [[ $width -lt 40 ]] && width=40
+    [[ $width -gt 120 ]] && width=120
+    echo "$width"
+}
+
 _update_header() {
-    echo -e "\n${UPDATE_COLOR_BOLD}${UPDATE_COLOR_CYAN}══════════════════════════════════════════════════════════════${UPDATE_COLOR_RESET}"
+    local width
+    width=$(_update_get_width)
+    local line
+    line=$(printf '═%.0s' $(seq 1 "$width"))
+    
+    echo -e "\n${UPDATE_COLOR_BOLD}${UPDATE_COLOR_CYAN}${line}${UPDATE_COLOR_RESET}"
     echo -e "${UPDATE_COLOR_BOLD}${UPDATE_COLOR_CYAN}  $1${UPDATE_COLOR_RESET}"
-    echo -e "${UPDATE_COLOR_BOLD}${UPDATE_COLOR_CYAN}══════════════════════════════════════════════════════════════${UPDATE_COLOR_RESET}\n"
+    echo -e "${UPDATE_COLOR_BOLD}${UPDATE_COLOR_CYAN}${line}${UPDATE_COLOR_RESET}\n"
 }
 
 _update_section() {
+    local width
+    width=$(_update_get_width)
+    local line
+    line=$(printf '─%.0s' $(seq 1 "$width"))
+    
     echo -e "\n${UPDATE_COLOR_BOLD}${UPDATE_COLOR_BLUE}▶ $1${UPDATE_COLOR_RESET}"
-    echo -e "${UPDATE_COLOR_BLUE}──────────────────────────────────────────────────────────────${UPDATE_COLOR_RESET}"
+    echo -e "${UPDATE_COLOR_BLUE}${line}${UPDATE_COLOR_RESET}"
 }
 
 _update_info() {
@@ -462,10 +481,15 @@ update-all() {
 # HELP FUNCTION
 # ==============================================================================
 update-help() {
-    cat << 'EOF'
-═══════════════════════════════════════════════════════════════════════════════
+    local width
+    width=$(_update_get_width)
+    local line
+    line=$(printf '═%.0s' $(seq 1 "$width"))
+    
+    cat << EOF
+${line}
 📚 UNIFIED UPDATE SYSTEM - COMMAND REFERENCE
-═══════════════════════════════════════════════════════════════════════════════
+${line}
 
 🚀 COMMANDS
   update          Update system packages
@@ -493,7 +517,7 @@ update-help() {
   cleanup         # Clean up orphaned packages
   full-update     # Do everything
 
-═══════════════════════════════════════════════════════════════════════════════
+${line}
 EOF
 }
 
