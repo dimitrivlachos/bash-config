@@ -9,6 +9,7 @@
 #   - Debian/Ubuntu (apt)
 #   - Raspberry Pi OS (apt + optional fastfetch updates)
 #   - RHEL/CentOS/Fedora (dnf/yum) - detection only, no auto-update
+#   - Flatpak (cross-platform, if installed)
 #
 # Usage: update, cleanup, full-update
 # ==============================================================================
@@ -349,6 +350,49 @@ _update_rhel_notice() {
 }
 
 # ==============================================================================
+# FLATPAK UPDATE FUNCTIONS
+# ==============================================================================
+_update_flatpak() {
+    _update_section "📦 Flatpak - Application Updates"
+    
+    if ! command -v flatpak &>/dev/null; then
+        _update_skip "Flatpak not installed"
+        return 0
+    fi
+    
+    _update_info "Checking for flatpak updates..."
+    _update_command "flatpak update -y" "Update all installed flatpak applications"
+    
+    if flatpak update -y; then
+        _update_success "Flatpak update complete"
+        return 0
+    else
+        _update_error "Flatpak update failed"
+        return 1
+    fi
+}
+
+_cleanup_flatpak() {
+    _update_section "🧹 Flatpak - Removing Unused Runtimes"
+    
+    if ! command -v flatpak &>/dev/null; then
+        _update_skip "Flatpak not installed"
+        return 0
+    fi
+    
+    _update_info "Removing unused flatpak runtimes and extensions..."
+    _update_command "flatpak uninstall --unused -y" "Remove unused runtimes and extensions"
+    
+    if flatpak uninstall --unused -y; then
+        _update_success "Flatpak cleanup complete"
+        return 0
+    else
+        _update_warn "Flatpak cleanup encountered issues"
+        return 1
+    fi
+}
+
+# ==============================================================================
 # MAIN UPDATE FUNCTIONS
 # ==============================================================================
 
@@ -365,8 +409,10 @@ update() {
             local pacman_result=$?
             _update_arch_aur
             local aur_result=$?
+            _update_flatpak
+            local flatpak_result=$?
             
-            if [[ $pacman_result -eq 0 && $aur_result -eq 0 ]]; then
+            if [[ $pacman_result -eq 0 && $aur_result -eq 0 && $flatpak_result -eq 0 ]]; then
                 echo -e "\n${UPDATE_COLOR_GREEN}${UPDATE_COLOR_BOLD}✓ All updates completed successfully${UPDATE_COLOR_RESET}\n"
                 return 0
             else
@@ -375,20 +421,30 @@ update() {
             fi
             ;;
         debian)
-            if _update_debian_apt; then
+            _update_debian_apt
+            local apt_result=$?
+            _update_flatpak
+            local flatpak_result=$?
+            
+            if [[ $apt_result -eq 0 && $flatpak_result -eq 0 ]]; then
                 echo -e "\n${UPDATE_COLOR_GREEN}${UPDATE_COLOR_BOLD}✓ All updates completed successfully${UPDATE_COLOR_RESET}\n"
                 return 0
             else
-                echo -e "\n${UPDATE_COLOR_RED}${UPDATE_COLOR_BOLD}✗ Updates failed${UPDATE_COLOR_RESET}\n"
+                echo -e "\n${UPDATE_COLOR_YELLOW}${UPDATE_COLOR_BOLD}⚠ Updates completed with some issues${UPDATE_COLOR_RESET}\n"
                 return 1
             fi
             ;;
         raspbian)
-            if _update_debian_apt; then
+            _update_debian_apt
+            local apt_result=$?
+            _update_flatpak
+            local flatpak_result=$?
+            
+            if [[ $apt_result -eq 0 && $flatpak_result -eq 0 ]]; then
                 echo -e "\n${UPDATE_COLOR_GREEN}${UPDATE_COLOR_BOLD}✓ All updates completed successfully${UPDATE_COLOR_RESET}\n"
                 return 0
             else
-                echo -e "\n${UPDATE_COLOR_RED}${UPDATE_COLOR_BOLD}✗ Updates failed${UPDATE_COLOR_RESET}\n"
+                echo -e "\n${UPDATE_COLOR_YELLOW}${UPDATE_COLOR_BOLD}⚠ Updates completed with some issues${UPDATE_COLOR_RESET}\n"
                 return 1
             fi
             ;;
@@ -414,7 +470,12 @@ cleanup() {
     
     case "$os_type" in
         arch)
-            if _cleanup_arch; then
+            _cleanup_arch
+            local arch_result=$?
+            _cleanup_flatpak
+            local flatpak_result=$?
+            
+            if [[ $arch_result -eq 0 && $flatpak_result -eq 0 ]]; then
                 echo -e "\n${UPDATE_COLOR_GREEN}${UPDATE_COLOR_BOLD}✓ Cleanup completed successfully${UPDATE_COLOR_RESET}\n"
                 return 0
             else
@@ -423,7 +484,12 @@ cleanup() {
             fi
             ;;
         debian|raspbian)
-            if _cleanup_debian; then
+            _cleanup_debian
+            local debian_result=$?
+            _cleanup_flatpak
+            local flatpak_result=$?
+            
+            if [[ $debian_result -eq 0 && $flatpak_result -eq 0 ]]; then
                 echo -e "\n${UPDATE_COLOR_GREEN}${UPDATE_COLOR_BOLD}✓ Cleanup completed successfully${UPDATE_COLOR_RESET}\n"
                 return 0
             else
@@ -518,6 +584,7 @@ ${line}
   Debian/Ubuntu   apt
   Raspberry Pi    apt + fastfetch auto-update
   RHEL/CentOS     Detection only (managed systems)
+  Flatpak         Cross-platform (if installed)
 
 🎨 OUTPUT COLOURS
   Blue            Section headers
