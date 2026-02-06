@@ -33,9 +33,23 @@ PROMPT_SYMBOL="${CRYSTAL_SYMBOLS[RANDOM % ${#CRYSTAL_SYMBOLS[@]}]}"
 # Prompt display defaults
 export SHOW_USER=${SHOW_USER:-0}      # Username display (off by default)
 export SHOW_HOST=${SHOW_HOST:-0}      # Hostname display (off by default)
+export SHOW_VENV=${SHOW_VENV:-1}      # Virtual env display (on by default)
 
-# VS Code terminal: enable emojis by default
-[[ "$TERM_PROGRAM" == "vscode" ]] && export SHOW_EMOJIS=1
+# Auto-detect emoji support
+if [[ -z "${SHOW_EMOJIS+x}" ]]; then
+    # Check for VS Code, common GUI terminals, or UTF-8 locale
+    if [[ "$TERM_PROGRAM" == "vscode" ]] || \
+       [[ "$TERM_PROGRAM" == "Apple_Terminal" ]] || \
+       [[ "$TERM" == *"kitty"* ]] || \
+       [[ "$TERM" == *"alacritty"* ]] || \
+       [[ "$COLORTERM" == "truecolor" ]] || \
+       [[ "$LC_ALL" == *"UTF-8"* ]] || \
+       [[ "$LANG" == *"UTF-8"* ]]; then
+        export SHOW_EMOJIS=1
+    else
+        export SHOW_EMOJIS=0
+    fi
+fi
 
 # ------------------------------------------------------------------------------
 # Prompt Components
