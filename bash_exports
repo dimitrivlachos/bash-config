@@ -12,7 +12,8 @@
 # ------------------------------------------------------------------------------
 export SHOW_GIT_BRANCH=0       # Toggle: show git branch in prompt (0=off, 1=on)
 export SHOW_VENV=1             # Toggle: show conda/venv in prompt (0=off, 1=on)
-export SHOW_EMOJIS=0           # Toggle: show emojis in prompt (0=off, 1=on)
+# SHOW_EMOJIS is auto-detected in bash_prompt based on terminal capabilities
+#export SHOW_EMOJIS=0           # Toggle: show emojis in prompt (0=off, 1=on)
 export DIR_LENGTH="short"      # Directory display: "short" (\W) or "long" (\w)
 
 # ------------------------------------------------------------------------------
