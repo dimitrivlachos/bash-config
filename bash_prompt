@@ -56,8 +56,16 @@ parse_virtualenv() {
         env_name="$(basename "$CONDA_DEFAULT_ENV")"
     fi
 
+    # Skip displaying 'base' environment
+    [[ "$env_name" == "base" ]] && return
+
     if [[ "$SHOW_VENV" -eq 1 && -n "$env_name" ]]; then
-        echo -e "(${VEN_COLOR}${env_name}${RESET_COLOR}${SHOW_EMOJIS:+ 🐍})"
+        #echo -e "(${VEN_COLOR}${env_name}${RESET_COLOR}${SHOW_EMOJIS:+ 🐍})"
+        if [[ "$SHOW_EMOJIS" -eq 1 ]]; then
+            echo -e "🐍"
+        else
+            echo -e "${env_name:0:1}"
+        fi
     fi
 }
 
