@@ -30,6 +30,10 @@ RESET_COLOR="\[\033[0m\]"        # Reset
 CRYSTAL_SYMBOLS=("λ" "θ" "φ" "ω" "ζ" "δ" "Å")
 PROMPT_SYMBOL="${CRYSTAL_SYMBOLS[RANDOM % ${#CRYSTAL_SYMBOLS[@]}]}"
 
+# Prompt display defaults
+export SHOW_USER=${SHOW_USER:-0}      # Username display (off by default)
+export SHOW_HOST=${SHOW_HOST:-0}      # Hostname display (off by default)
+
 # VS Code terminal: enable emojis by default
 [[ "$TERM_PROGRAM" == "vscode" ]] && export SHOW_EMOJIS=1
 
@@ -95,17 +99,27 @@ set_prompt() {
     fi
     
     # Default custom prompt
-    local venv branch dir prompt_char
+    local venv branch dir prompt_char user_host
     venv="$(parse_virtualenv)"
     branch="$(parse_git_branch)"
     dir="\W"
     [[ "$DIR_LENGTH" == "long" ]] && dir="\w"
     
+    # Build user@host part conditionally
+    user_host=""
+    if [[ "$SHOW_USER" -eq 1 ]] && [[ "$SHOW_HOST" -eq 1 ]]; then
+        user_host="${USER_COLOR}\u${RESET_COLOR}@${HOST_COLOR}$(map_hostname "${HOSTNAME:-$(uname -n)}")${RESET_COLOR}:"
+    elif [[ "$SHOW_USER" -eq 1 ]]; then
+        user_host="${USER_COLOR}\u${RESET_COLOR}:"
+    elif [[ "$SHOW_HOST" -eq 1 ]]; then
+        user_host="${HOST_COLOR}$(map_hostname "${HOSTNAME:-$(uname -n)}")${RESET_COLOR}:"
+    fi
+    
     # Prompt character: random crystallography symbol for user, # for root
     prompt_char="$PROMPT_SYMBOL"
     [[ $EUID -eq 0 ]] && prompt_char="#"
     
-    PS1="${venv}[${USER_COLOR}\u${RESET_COLOR}@${HOST_COLOR}$(map_hostname "${HOSTNAME:-$(uname -n)}")${RESET_COLOR}:${DIR_COLOR}${dir}${RESET_COLOR}${branch}]${prompt_char} "
+    PS1="${venv}[${user_host}${DIR_COLOR}${dir}${RESET_COLOR}${branch}]${prompt_char} "
 }
 
 # ------------------------------------------------------------------------------
@@ -116,6 +130,8 @@ tgit()  { export SHOW_GIT_BRANCH=$((1 - SHOW_GIT_BRANCH)); set_prompt; }
 tvenv() { export SHOW_VENV=$((1 - SHOW_VENV)); set_prompt; }
 tdir()  { DIR_LENGTH=$([[ "$DIR_LENGTH" == "short" ]] && echo "long" || echo "short"); set_prompt; }
 tem()   { export SHOW_EMOJIS=$((1 - SHOW_EMOJIS)); set_prompt; }
+tuser() { export SHOW_USER=$((1 - SHOW_USER)); set_prompt; }
+thost() { export SHOW_HOST=$((1 - SHOW_HOST)); set_prompt; }
 
 # ------------------------------------------------------------------------------
 # Help Function
@@ -127,6 +143,8 @@ ph() {
     echo "  tvenv     - Toggle virtual environment display in prompt"
     echo "  tdir      - Toggle directory format (short \\W / long \\w)"
     echo "  tem       - Toggle emoji display in prompt"
+    echo "  tuser     - Toggle username display in prompt"
+    echo "  thost     - Toggle hostname display in prompt"
     echo "  ph        - Show this help message"
     echo "  rp        - Reset/refresh the prompt"
 }
