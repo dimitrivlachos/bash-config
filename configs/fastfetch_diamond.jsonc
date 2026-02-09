@@ -62,7 +62,12 @@
       "keyColor": "magenta",
       "text": "cpu=$(sensors coretemp-isa-0000 2>/dev/null | awk '/Package id 0:/{gsub(/[+°C]/,\"\"); print $4\"°C\"}' || echo 'N/A'); gpu=$(nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader,nounits 2>/dev/null | awk '{print $1\"°C\"}' || echo 'N/A'); echo -e \"\\033[1;32mCPU:\\033[0m $cpu \\033[90m|\\033[0m \\033[1;32mGPU:\\033[0m $gpu\""
     },
-    { "type": "loadavg", "key": "Load", "keyColor": "magenta" },
+    {
+      "type": "command",
+      "key": "Load",
+      "keyColor": "magenta",
+      "text": "echo \"$(awk '{print $1, $2, $3}' /proc/loadavg) ($(nproc) cores)\""
+    },
     { "type": "uptime", "key": "Uptime", "keyColor": "magenta" },
     { "type": "datetime", "key": "Date", "keyColor": "magenta" },
     {

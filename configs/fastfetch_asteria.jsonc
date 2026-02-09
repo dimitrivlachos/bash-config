@@ -53,7 +53,12 @@
       "keyColor": "magenta",
       "text": "vcgencmd measure_temp 2>/dev/null | sed 's/temp=//' || echo 'N/A'"
     },
-    { "type": "loadavg", "key": "Load", "keyColor": "magenta" },
+    {
+      "type": "command",
+      "key": "Load",
+      "keyColor": "magenta",
+      "text": "echo \"$(awk '{print $1, $2, $3}' /proc/loadavg) ($(nproc) cores)\""
+    },
     { "type": "uptime", "key": "Up", "keyColor": "magenta" },
     { "type": "localip", "key": "IP", "keyColor": "magenta" },
     {
