@@ -1,0 +1,766 @@
+#!/bin/bash
+# ==============================================================================
+# ARCH LINUX BOOTSTRAP UTILITY
+# ==============================================================================
+# Automated setup for fresh Arch Linux installations.
+# Installs packages in configurable tiers so you can tailor each machine.
+#
+# Usage:
+#   bc_bootstrap                    # Interactive mode - choose tiers
+#   bc_bootstrap --tier base        # Install only base tier
+#   bc_bootstrap --tier all         # Install everything
+#   bc_bootstrap --dry-run          # Show what would be installed
+#   bc_bootstrap --list             # List all tiers and packages
+#
+# Package tiers:
+#   base        - Essential system packages (always recommended)
+#   desktop-kde - KDE Plasma desktop environment
+#   desktop-hyprland - Hyprland wayland compositor
+#   audio       - PipeWire audio stack
+#   networking  - WiFi, Bluetooth, SSH, VPN
+#   dev         - Development tools and editors
+#   media       - Media players, browsers, chat apps
+#   gaming      - Steam, Moonlight
+#   hardware    - NVIDIA drivers, Intel microcode, TLP
+#   utilities   - System monitoring, file tools, misc
+#   fonts       - Nerd Fonts and Liberation
+#
+# Flatpak is used for proprietary/Electron apps (Discord, Obsidian, Telegram, Zoom).
+# Prefer paru over yay as AUR helper (same syntax, reviews PKGBUILDs by default).
+#
+# AUR and Flatpak packages are handled separately after pacman.
+# ==============================================================================
+
+# ==============================================================================
+# PACKAGE TIER DEFINITIONS
+# ==============================================================================
+# Each tier is a bash array. Edit these to match your preferences.
+# Packages sourced from work machine export as a baseline.
+
+# --- Base system (almost always needed) ---
+_BOOTSTRAP_BASE=(
+    base
+    base-devel
+    linux
+    linux-firmware
+    linux-headers
+    efibootmgr
+    less
+    nano
+    vim
+    git
+    wget
+    openssh
+    sof-firmware
+    alsa-firmware
+)
+
+# --- KDE Plasma desktop ---
+_BOOTSTRAP_DESKTOP_KDE=(
+    plasma-meta
+    plasma-workspace
+    konsole
+    dolphin
+    ark
+    kate
+    xorg-xinit
+    xdg-utils
+)
+
+# --- Hyprland (wayland compositor) ---
+_BOOTSTRAP_DESKTOP_HYPRLAND=(
+    hyprland
+    hyprpaper
+    hyprlock
+    hypridle
+    xdg-desktop-portal-hyprland
+    waybar
+    wofi
+    dunst
+    grim
+    slurp
+    wl-clipboard
+    alacritty
+    thunar
+    polkit-kde-agent
+    qt5-wayland
+    qt6-wayland
+    xdg-utils
+)
+
+# --- Audio (PipeWire) ---
+_BOOTSTRAP_AUDIO=(
+    pipewire
+    pipewire-alsa
+    pipewire-jack
+    pipewire-pulse
+    wireplumber
+    libpulse
+    gst-plugin-pipewire
+    alsa-utils
+)
+
+# --- Networking & connectivity ---
+_BOOTSTRAP_NETWORKING=(
+    iwd
+    wpa_supplicant
+    wireless_tools
+    bluez
+    bluez-utils
+    bind
+    tailscale
+    ufw
+)
+
+# --- Development tools ---
+_BOOTSTRAP_DEV=(
+    git
+    ninja
+    7zip
+    screen
+    htop
+    btop
+)
+
+# --- Media & browsers ---
+_BOOTSTRAP_MEDIA=(
+    firefox
+    mpv
+    vlc
+)
+
+# --- Gaming ---
+_BOOTSTRAP_GAMING=(
+    steam
+    moonlight-qt
+)
+
+# --- Hardware-specific (NVIDIA + Intel) ---
+# Modify or skip this tier for AMD/other hardware
+_BOOTSTRAP_HARDWARE=(
+    intel-ucode
+    nvidia-open-dkms
+    dkms
+    libva-nvidia-driver
+    nvtop
+    tlp
+    tlp-rdw
+)
+
+# --- Utilities ---
+_BOOTSTRAP_UTILITIES=(
+    fastfetch
+    cups
+    cups-filters
+    ghostscript
+    system-config-printer
+    smartmontools
+    rpi-imager
+    exfatprogs
+)
+
+# --- Fonts ---
+_BOOTSTRAP_FONTS=(
+    otf-firamono-nerd
+    ttf-firacode-nerd
+    ttf-liberation
+)
+
+# --- AUR packages (installed via yay/paru) ---
+# paru is auto-bootstrapped if no AUR helper exists
+_BOOTSTRAP_AUR=(
+    visual-studio-code-bin
+    micromamba
+)
+
+# --- AUR gaming (separate so non-gaming machines skip it) ---
+_BOOTSTRAP_AUR_GAMING=(
+    protonup-qt
+)
+
+# --- AUR dev/niche ---
+_BOOTSTRAP_AUR_DEV=(
+    python-inputs
+    python-steam
+    reproc
+)
+
+# --- Flatpak packages ---
+# Proprietary / Electron apps: better sandboxed and independently updated
+_BOOTSTRAP_FLATPAK=(
+    org.onlyoffice.desktopeditors
+    com.discordapp.Discord
+    md.obsidian.Obsidian
+    org.telegram.desktop
+    us.zoom.Zoom
+)
+
+# ==============================================================================
+# TIER REGISTRY
+# ==============================================================================
+# Maps tier names to their array variable names and descriptions.
+# This drives the interactive menu and --list output.
+
+declare -A _BOOTSTRAP_TIERS=(
+    [base]="_BOOTSTRAP_BASE|Base system essentials"
+    [desktop-kde]="_BOOTSTRAP_DESKTOP_KDE|KDE Plasma desktop"
+    [desktop-hyprland]="_BOOTSTRAP_DESKTOP_HYPRLAND|Hyprland wayland compositor"
+    [audio]="_BOOTSTRAP_AUDIO|PipeWire audio stack"
+    [networking]="_BOOTSTRAP_NETWORKING|WiFi, Bluetooth, SSH, VPN"
+    [dev]="_BOOTSTRAP_DEV|Development tools"
+    [media]="_BOOTSTRAP_MEDIA|Firefox, mpv, vlc"
+    [gaming]="_BOOTSTRAP_GAMING|Steam, Moonlight"
+    [hardware]="_BOOTSTRAP_HARDWARE|NVIDIA + Intel + TLP"
+    [utilities]="_BOOTSTRAP_UTILITIES|Printing, SMART, fastfetch"
+    [fonts]="_BOOTSTRAP_FONTS|Nerd Fonts & Liberation"
+)
+
+declare -A _BOOTSTRAP_AUR_TIERS=(
+    [aur-core]="_BOOTSTRAP_AUR|Core AUR packages (vscode, micromamba)"
+    [aur-gaming]="_BOOTSTRAP_AUR_GAMING|AUR gaming (ProtonUp)"
+    [aur-dev]="_BOOTSTRAP_AUR_DEV|AUR dev libraries"
+)
+
+# Ordered tier names for consistent display
+_BOOTSTRAP_TIER_ORDER=(base desktop-kde desktop-hyprland audio networking dev media gaming hardware utilities fonts)
+_BOOTSTRAP_AUR_TIER_ORDER=(aur-core aur-gaming aur-dev)
+
+# ==============================================================================
+# HELPER FUNCTIONS
+# ==============================================================================
+
+# Get packages from a tier by name
+_bootstrap_get_packages() {
+    local tier="$1"
+    local entry="${_BOOTSTRAP_TIERS[$tier]:-${_BOOTSTRAP_AUR_TIERS[$tier]:-}}"
+
+    if [[ -z "$entry" ]]; then
+        return 1
+    fi
+
+    local var_name="${entry%%|*}"
+    local -n arr="$var_name"
+    echo "${arr[@]}"
+}
+
+# Get tier description
+_bootstrap_get_description() {
+    local tier="$1"
+    local entry="${_BOOTSTRAP_TIERS[$tier]:-${_BOOTSTRAP_AUR_TIERS[$tier]:-}}"
+    echo "${entry##*|}"
+}
+
+# Deduplicate a space-separated package list
+_bootstrap_dedup() {
+    echo "$@" | tr ' ' '\n' | sort -u | tr '\n' ' '
+}
+
+# Check which packages from a list are not yet installed
+_bootstrap_filter_installed() {
+    local packages=("$@")
+    local to_install=()
+
+    for pkg in "${packages[@]}"; do
+        if ! pacman -Qi "$pkg" &>/dev/null; then
+            to_install+=("$pkg")
+        fi
+    done
+
+    echo "${to_install[@]}"
+}
+
+# Detect AUR helper (mirrors logic from bash_update)
+_bootstrap_detect_aur_helper() {
+    if command -v yay &>/dev/null; then
+        echo "yay"
+    elif command -v paru &>/dev/null; then
+        echo "paru"
+    else
+        echo ""
+    fi
+}
+
+# ==============================================================================
+# LIST COMMAND
+# ==============================================================================
+
+_bootstrap_list() {
+    echo -e "${BC_COLOR_CYAN}Arch Bootstrap - Available Package Tiers${BC_COLOR_RESET}"
+    echo
+
+    echo -e "${BC_COLOR_BLUE}Pacman Tiers:${BC_COLOR_RESET}"
+    for tier in "${_BOOTSTRAP_TIER_ORDER[@]}"; do
+        local desc
+        desc=$(_bootstrap_get_description "$tier")
+        local -n pkgs="${_BOOTSTRAP_TIERS[$tier]%%|*}"
+        echo -e "  ${BC_COLOR_GREEN}${tier}${BC_COLOR_RESET} (${#pkgs[@]} packages) - $desc"
+        for pkg in "${pkgs[@]}"; do
+            if pacman -Qi "$pkg" &>/dev/null 2>&1; then
+                echo -e "    ${BC_COLOR_GRAY}✓ $pkg${BC_COLOR_RESET}"
+            else
+                echo -e "    ${BC_COLOR_YELLOW}○ $pkg${BC_COLOR_RESET}"
+            fi
+        done
+    done
+
+    echo
+    echo -e "${BC_COLOR_BLUE}AUR Tiers:${BC_COLOR_RESET}"
+    for tier in "${_BOOTSTRAP_AUR_TIER_ORDER[@]}"; do
+        local desc
+        desc=$(_bootstrap_get_description "$tier")
+        local -n pkgs="${_BOOTSTRAP_AUR_TIERS[$tier]%%|*}"
+        echo -e "  ${BC_COLOR_GREEN}${tier}${BC_COLOR_RESET} (${#pkgs[@]} packages) - $desc"
+        for pkg in "${pkgs[@]}"; do
+            if pacman -Qi "$pkg" &>/dev/null 2>&1; then
+                echo -e "    ${BC_COLOR_GRAY}✓ $pkg${BC_COLOR_RESET}"
+            else
+                echo -e "    ${BC_COLOR_YELLOW}○ $pkg${BC_COLOR_RESET}"
+            fi
+        done
+    done
+
+    echo
+    echo -e "${BC_COLOR_BLUE}Flatpak Packages:${BC_COLOR_RESET}"
+    for pkg in "${_BOOTSTRAP_FLATPAK[@]}"; do
+        if flatpak info "$pkg" &>/dev/null 2>&1; then
+            echo -e "  ${BC_COLOR_GRAY}✓ $pkg${BC_COLOR_RESET}"
+        else
+            echo -e "  ${BC_COLOR_YELLOW}○ $pkg${BC_COLOR_RESET}"
+        fi
+    done
+
+    echo
+    echo -e "${BC_COLOR_GRAY}✓ = installed, ○ = not installed${BC_COLOR_RESET}"
+}
+
+# ==============================================================================
+# INSTALL FUNCTIONS
+# ==============================================================================
+
+_bootstrap_install_pacman() {
+    local packages=("$@")
+
+    if [[ ${#packages[@]} -eq 0 ]]; then
+        bc_log_success "All pacman packages already installed"
+        return 0
+    fi
+
+    bc_log_info "Installing ${#packages[@]} pacman package(s)..."
+    echo -e "  ${BC_COLOR_GRAY}${packages[*]}${BC_COLOR_RESET}"
+
+    if sudo pacman -S --needed --noconfirm "${packages[@]}"; then
+        bc_log_success "Pacman packages installed"
+        return 0
+    else
+        bc_log_error "Some pacman packages failed to install"
+        return 1
+    fi
+}
+
+# Bootstrap paru from source if no AUR helper exists
+_bootstrap_install_paru() {
+    if command -v paru &>/dev/null || command -v yay &>/dev/null; then
+        return 0  # Already have an AUR helper
+    fi
+
+    bc_log_info "No AUR helper found - bootstrapping paru from source..."
+    
+    # Ensure base-devel and git are installed
+    if ! pacman -Qi base-devel &>/dev/null || ! pacman -Qi git &>/dev/null; then
+        bc_log_info "Installing build dependencies..."
+        sudo pacman -S --needed --noconfirm base-devel git || return 1
+    fi
+
+    local build_dir="/tmp/paru-bootstrap-$$"
+    mkdir -p "$build_dir" || return 1
+    
+    bc_log_info "Cloning paru..."
+    if ! git clone https://aur.archlinux.org/paru.git "$build_dir/paru"; then
+        bc_log_error "Failed to clone paru"
+        rm -rf "$build_dir"
+        return 1
+    fi
+
+    bc_log_info "Building and installing paru (this may take a minute)..."
+    if ! (cd "$build_dir/paru" && makepkg -si --noconfirm); then
+        bc_log_error "Failed to build paru"
+        rm -rf "$build_dir"
+        return 1
+    fi
+
+    rm -rf "$build_dir"
+    bc_log_success "paru installed successfully"
+    return 0
+}
+
+_bootstrap_install_aur() {
+    local packages=("$@")
+    local aur_helper
+    aur_helper=$(_bootstrap_detect_aur_helper)
+
+    if [[ ${#packages[@]} -eq 0 ]]; then
+        bc_log_success "All AUR packages already installed"
+        return 0
+    fi
+
+    # Auto-bootstrap paru if no AUR helper exists
+    if [[ -z "$aur_helper" ]]; then
+        if ! _bootstrap_install_paru; then
+            bc_log_error "Could not bootstrap AUR helper"
+            bc_log_info "Skipped AUR packages: ${packages[*]}"
+            return 1
+        fi
+        aur_helper="paru"
+    fi
+
+    bc_log_info "Installing ${#packages[@]} AUR package(s) via $aur_helper..."
+    echo -e "  ${BC_COLOR_GRAY}${packages[*]}${BC_COLOR_RESET}"
+
+    if "$aur_helper" -S --needed --noconfirm "${packages[@]}"; then
+        bc_log_success "AUR packages installed"
+        return 0
+    else
+        bc_log_error "Some AUR packages failed to install"
+        return 1
+    fi
+}
+
+_bootstrap_install_flatpak() {
+    local packages=("$@")
+
+    if [[ ${#packages[@]} -eq 0 ]]; then
+        bc_log_success "All Flatpak packages already installed"
+        return 0
+    fi
+
+    if ! command -v flatpak &>/dev/null; then
+        bc_log_warn "Flatpak not installed. Install it first:"
+        echo -e "  ${BC_COLOR_GRAY}sudo pacman -S flatpak${BC_COLOR_RESET}"
+        return 1
+    fi
+
+    # Ensure Flathub is configured
+    if ! flatpak remote-list | grep -q flathub; then
+        bc_log_info "Adding Flathub repository..."
+        flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+    fi
+
+    bc_log_info "Installing ${#packages[@]} Flatpak package(s)..."
+    local failed=0
+    for pkg in "${packages[@]}"; do
+        if flatpak info "$pkg" &>/dev/null 2>&1; then
+            echo -e "  ${BC_COLOR_GRAY}✓ $pkg (already installed)${BC_COLOR_RESET}"
+        else
+            echo -e "  ${BC_COLOR_YELLOW}○ Installing $pkg...${BC_COLOR_RESET}"
+            if ! flatpak install -y flathub "$pkg"; then
+                bc_log_error "Failed to install: $pkg"
+                ((failed++))
+            fi
+        fi
+    done
+
+    [[ $failed -eq 0 ]]
+}
+
+# ==============================================================================
+# INTERACTIVE TIER SELECTOR
+# ==============================================================================
+
+_bootstrap_interactive() {
+    local dry_run="${1:-false}"
+
+    echo -e "${BC_COLOR_CYAN}Arch Linux Bootstrap - Interactive Setup${BC_COLOR_RESET}"
+    echo -e "${BC_COLOR_GRAY}Select package tiers to install. Base tier is always recommended.${BC_COLOR_RESET}"
+    echo
+
+    # Collect selected tiers
+    local selected_pacman_tiers=()
+    local selected_aur_tiers=()
+    local install_flatpak=false
+
+    # Pacman tiers
+    echo -e "${BC_COLOR_BLUE}── Pacman Package Tiers ──${BC_COLOR_RESET}"
+    for tier in "${_BOOTSTRAP_TIER_ORDER[@]}"; do
+        local desc
+        desc=$(_bootstrap_get_description "$tier")
+        local -n pkgs="${_BOOTSTRAP_TIERS[$tier]%%|*}"
+
+        local default="y"
+        # Default 'n' for hardware-specific, gaming, and desktop choice tiers
+        [[ "$tier" == "hardware" || "$tier" == "gaming" || "$tier" == "desktop-kde" || "$tier" == "desktop-hyprland" ]] && default="n"
+
+        local prompt_color="${BC_COLOR_GREEN}"
+        [[ "$default" == "n" ]] && prompt_color="${BC_COLOR_YELLOW}"
+
+        echo -en "  ${prompt_color}${desc} [${tier}]${BC_COLOR_RESET} (${#pkgs[@]} packages) [${default^^}/$([ "$default" == "y" ] && echo "n" || echo "y")]: "
+        read -r choice
+        choice="${choice:-$default}"
+
+        if [[ "${choice,,}" == "y" ]]; then
+            selected_pacman_tiers+=("$tier")
+        fi
+    done
+
+    echo
+    echo -e "${BC_COLOR_BLUE}── AUR Package Tiers ──${BC_COLOR_RESET}"
+    for tier in "${_BOOTSTRAP_AUR_TIER_ORDER[@]}"; do
+        local desc
+        desc=$(_bootstrap_get_description "$tier")
+        local -n pkgs="${_BOOTSTRAP_AUR_TIERS[$tier]%%|*}"
+
+        local default="y"
+        [[ "$tier" == "aur-gaming" || "$tier" == "aur-dev" ]] && default="n"
+
+        local prompt_color="${BC_COLOR_GREEN}"
+        [[ "$default" == "n" ]] && prompt_color="${BC_COLOR_YELLOW}"
+
+        echo -en "  ${prompt_color}${desc} [${tier}]${BC_COLOR_RESET} (${#pkgs[@]} packages) [${default^^}/$([ "$default" == "y" ] && echo "n" || echo "y")]: "
+        read -r choice
+        choice="${choice:-$default}"
+
+        if [[ "${choice,,}" == "y" ]]; then
+            selected_aur_tiers+=("$tier")
+        fi
+    done
+
+    echo
+    echo -en "  ${BC_COLOR_GREEN}Flatpak packages${BC_COLOR_RESET} (${#_BOOTSTRAP_FLATPAK[@]} packages) [Y/n]: "
+    read -r choice
+    choice="${choice:-y}"
+    [[ "${choice,,}" == "y" ]] && install_flatpak=true
+
+    # Collect all packages
+    local all_pacman=()
+    for tier in "${selected_pacman_tiers[@]}"; do
+        local pkgs
+        pkgs=$(_bootstrap_get_packages "$tier")
+        all_pacman+=($pkgs)
+    done
+
+    local all_aur=()
+    for tier in "${selected_aur_tiers[@]}"; do
+        local pkgs
+        pkgs=$(_bootstrap_get_packages "$tier")
+        all_aur+=($pkgs)
+    done
+
+    # Deduplicate
+    local unique_pacman
+    unique_pacman=($(_bootstrap_dedup "${all_pacman[@]}"))
+    local unique_aur
+    unique_aur=($(_bootstrap_dedup "${all_aur[@]}"))
+
+    # Filter already installed
+    local to_install_pacman
+    to_install_pacman=($(_bootstrap_filter_installed "${unique_pacman[@]}"))
+    local to_install_aur
+    to_install_aur=($(_bootstrap_filter_installed "${unique_aur[@]}"))
+
+    # Summary
+    echo
+    echo -e "${BC_COLOR_CYAN}═══════════════════════════════════════════════════════${BC_COLOR_RESET}"
+    echo -e "${BC_COLOR_CYAN}  Bootstrap Summary${BC_COLOR_RESET}"
+    echo -e "${BC_COLOR_CYAN}═══════════════════════════════════════════════════════${BC_COLOR_RESET}"
+    echo -e "  ${BC_COLOR_BLUE}Pacman tiers:${BC_COLOR_RESET} ${selected_pacman_tiers[*]:-none}"
+    echo -e "  ${BC_COLOR_BLUE}AUR tiers:${BC_COLOR_RESET}    ${selected_aur_tiers[*]:-none}"
+    echo -e "  ${BC_COLOR_BLUE}Flatpak:${BC_COLOR_RESET}      $install_flatpak"
+    echo
+    echo -e "  ${BC_COLOR_BLUE}Pacman to install:${BC_COLOR_RESET} ${#to_install_pacman[@]} new (${#unique_pacman[@]} total, $(( ${#unique_pacman[@]} - ${#to_install_pacman[@]} )) already installed)"
+    echo -e "  ${BC_COLOR_BLUE}AUR to install:${BC_COLOR_RESET}    ${#to_install_aur[@]} new (${#unique_aur[@]} total, $(( ${#unique_aur[@]} - ${#to_install_aur[@]} )) already installed)"
+
+    if [[ ${#to_install_pacman[@]} -gt 0 ]]; then
+        echo -e "\n  ${BC_COLOR_YELLOW}New pacman packages:${BC_COLOR_RESET}"
+        printf '    %s\n' "${to_install_pacman[@]}"
+    fi
+    if [[ ${#to_install_aur[@]} -gt 0 ]]; then
+        echo -e "\n  ${BC_COLOR_YELLOW}New AUR packages:${BC_COLOR_RESET}"
+        printf '    %s\n' "${to_install_aur[@]}"
+    fi
+
+    echo
+
+    if [[ "$dry_run" == "true" ]]; then
+        bc_log_info "Dry run complete - no packages were installed"
+        return 0
+    fi
+
+    echo -en "${BC_COLOR_YELLOW}  Proceed with installation? [y/N]: ${BC_COLOR_RESET}"
+    read -r confirm
+    if [[ "${confirm,,}" != "y" ]]; then
+        bc_log_info "Bootstrap cancelled"
+        return 0
+    fi
+
+    echo
+    local errors=0
+
+    # Install pacman packages
+    if [[ ${#to_install_pacman[@]} -gt 0 ]]; then
+        _bootstrap_install_pacman "${to_install_pacman[@]}" || ((errors++))
+    fi
+
+    # Install AUR packages
+    if [[ ${#to_install_aur[@]} -gt 0 ]]; then
+        _bootstrap_install_aur "${to_install_aur[@]}" || ((errors++))
+    fi
+
+    # Install Flatpak packages
+    if [[ "$install_flatpak" == "true" ]]; then
+        _bootstrap_install_flatpak "${_BOOTSTRAP_FLATPAK[@]}" || ((errors++))
+    fi
+
+    # Post-install suggestions
+    echo
+    echo -e "${BC_COLOR_CYAN}═══════════════════════════════════════════════════════${BC_COLOR_RESET}"
+    if [[ $errors -eq 0 ]]; then
+        bc_log_success "Bootstrap complete!"
+    else
+        bc_log_warn "Bootstrap completed with $errors error(s)"
+    fi
+    echo -e "${BC_COLOR_CYAN}═══════════════════════════════════════════════════════${BC_COLOR_RESET}"
+    echo
+    echo -e "${BC_COLOR_BLUE}Post-install suggestions:${BC_COLOR_RESET}"
+    echo "  - Enable services:  sudo systemctl enable --now sshd bluetooth cups tailscaled NetworkManager"
+    echo "  - Set up firewall:  sudo ufw enable && sudo ufw default deny"
+    echo "  - Set up TLP:       sudo systemctl enable --now tlp"
+    echo "  - Configure Git:    git-setup"
+    echo "  - Set up SSH:       ssh-setup"
+    echo "  - Reboot if kernel/drivers were updated"
+
+    return $errors
+}
+
+# ==============================================================================
+# MAIN ENTRY POINT
+# ==============================================================================
+
+bc_bootstrap() {
+    # Check we're on Arch
+    if [[ ! -f /etc/arch-release ]]; then
+        bc_log_error "This bootstrap is designed for Arch Linux"
+        bc_log_info "Detected OS: $(grep PRETTY_NAME /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '"')"
+        return 1
+    fi
+
+    local mode="interactive"
+    local dry_run=false
+    local tiers=()
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --list|-l)
+                _bootstrap_list
+                return 0
+                ;;
+            --dry-run|-n)
+                dry_run=true
+                shift
+                ;;
+            --tier|-t)
+                shift
+                if [[ "$1" == "all" ]]; then
+                    tiers=("${_BOOTSTRAP_TIER_ORDER[@]}" "${_BOOTSTRAP_AUR_TIER_ORDER[@]}" "flatpak")
+                else
+                    tiers+=("$1")
+                fi
+                mode="direct"
+                shift
+                ;;
+            --help|-h)
+                _bootstrap_help
+                return 0
+                ;;
+            *)
+                bc_log_error "Unknown option: $1"
+                _bootstrap_help
+                return 1
+                ;;
+        esac
+    done
+
+    if [[ "$mode" == "interactive" ]]; then
+        _bootstrap_interactive "$dry_run"
+        return $?
+    fi
+
+    # Direct tier installation
+    local all_pacman=()
+    local all_aur=()
+    local install_flatpak=false
+
+    for tier in "${tiers[@]}"; do
+        if [[ "$tier" == "flatpak" ]]; then
+            install_flatpak=true
+            continue
+        fi
+
+        if [[ -n "${_BOOTSTRAP_TIERS[$tier]:-}" ]]; then
+            local pkgs
+            pkgs=$(_bootstrap_get_packages "$tier")
+            all_pacman+=($pkgs)
+        elif [[ -n "${_BOOTSTRAP_AUR_TIERS[$tier]:-}" ]]; then
+            local pkgs
+            pkgs=$(_bootstrap_get_packages "$tier")
+            all_aur+=($pkgs)
+        else
+            bc_log_error "Unknown tier: $tier"
+            bc_log_info "Run 'bc_bootstrap --list' to see available tiers"
+            return 1
+        fi
+    done
+
+    local unique_pacman=($(_bootstrap_dedup "${all_pacman[@]}"))
+    local unique_aur=($(_bootstrap_dedup "${all_aur[@]}"))
+    local to_install_pacman=($(_bootstrap_filter_installed "${unique_pacman[@]}"))
+    local to_install_aur=($(_bootstrap_filter_installed "${unique_aur[@]}"))
+
+    if [[ "$dry_run" == "true" ]]; then
+        bc_log_info "Dry run - packages that would be installed:"
+        [[ ${#to_install_pacman[@]} -gt 0 ]] && echo -e "  ${BC_COLOR_BLUE}Pacman:${BC_COLOR_RESET} ${to_install_pacman[*]}"
+        [[ ${#to_install_aur[@]} -gt 0 ]] && echo -e "  ${BC_COLOR_BLUE}AUR:${BC_COLOR_RESET} ${to_install_aur[*]}"
+        [[ "$install_flatpak" == "true" ]] && echo -e "  ${BC_COLOR_BLUE}Flatpak:${BC_COLOR_RESET} ${_BOOTSTRAP_FLATPAK[*]}"
+        return 0
+    fi
+
+    local errors=0
+    [[ ${#to_install_pacman[@]} -gt 0 ]] && { _bootstrap_install_pacman "${to_install_pacman[@]}" || ((errors++)); }
+    [[ ${#to_install_aur[@]} -gt 0 ]] && { _bootstrap_install_aur "${to_install_aur[@]}" || ((errors++)); }
+    [[ "$install_flatpak" == "true" ]] && { _bootstrap_install_flatpak "${_BOOTSTRAP_FLATPAK[@]}" || ((errors++)); }
+
+    return $errors
+}
+
+# ==============================================================================
+# HELP
+# ==============================================================================
+
+_bootstrap_help() {
+    echo -e "${BC_COLOR_CYAN}Arch Linux Bootstrap${BC_COLOR_RESET}"
+    echo
+    echo -e "${BC_COLOR_BLUE}Usage:${BC_COLOR_RESET}"
+    echo "  bc_bootstrap                       Interactive mode (recommended)"
+    echo "  bc_bootstrap --list                Show all tiers and packages"
+    echo "  bc_bootstrap --dry-run             Interactive dry run"
+    echo "  bc_bootstrap --tier <name>         Install specific tier(s)"
+    echo "  bc_bootstrap --tier all            Install everything"
+    echo "  bc_bootstrap --tier base --tier dev  Install multiple tiers"
+    echo "  bc_bootstrap -t base -n            Dry run for base tier"
+    echo
+    echo -e "${BC_COLOR_BLUE}Tiers:${BC_COLOR_RESET}"
+    for tier in "${_BOOTSTRAP_TIER_ORDER[@]}"; do
+        printf "  ${BC_COLOR_GREEN}%-14s${BC_COLOR_RESET} %s\n" "$tier" "$(_bootstrap_get_description "$tier")"
+    done
+    for tier in "${_BOOTSTRAP_AUR_TIER_ORDER[@]}"; do
+        printf "  ${BC_COLOR_GREEN}%-14s${BC_COLOR_RESET} %s\n" "$tier" "$(_bootstrap_get_description "$tier")"
+    done
+    echo
+    echo -e "${BC_COLOR_BLUE}Aliases:${BC_COLOR_RESET}"
+    echo "  bootstrap        -> bc_bootstrap"
+    echo "  bootstrap-list   -> bc_bootstrap --list"
+}
+
+# ==============================================================================
+# ALIASES
+# ==============================================================================
+alias bootstrap='bc_bootstrap'
+alias bootstrap-list='bc_bootstrap --list'

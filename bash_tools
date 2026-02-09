@@ -455,6 +455,7 @@ bc_help() {
         echo "  git       - Git configuration"
         echo "  config    - Configuration validation and info"
         echo "  update    - Update management"
+        echo "  bootstrap - Arch Linux bootstrap"
         echo
         echo -e "${BC_COLOR_YELLOW}Quick Commands:${BC_COLOR_RESET}"
         echo "  bc_info           - Show current configuration"
@@ -524,6 +525,19 @@ bc_help() {
             echo "  bc_check_updates           # Check and notify"
             echo "  bc_update_config           # Show pending changes"
             echo "  bc_update_config update    # Apply updates"
+            ;;
+        bootstrap)
+            echo -e "${BC_COLOR_CYAN}🏗️  Arch Bootstrap:${BC_COLOR_RESET}"
+            echo
+            echo -e "${BC_COLOR_BLUE}Commands:${BC_COLOR_RESET}"
+            echo "  bc_bootstrap               - Interactive package installer"
+            echo "  bc_bootstrap --list        - Show all tiers and install status"
+            echo "  bc_bootstrap --dry-run     - Preview without installing"
+            echo "  bc_bootstrap --tier <name> - Install specific tier(s)"
+            echo
+            echo -e "${BC_COLOR_BLUE}Aliases:${BC_COLOR_RESET}"
+            echo "  bootstrap       -> bc_bootstrap"
+            echo "  bootstrap-list  -> bc_bootstrap --list"
             ;;
         *)
             bc_log_error "Unknown topic: $topic"
