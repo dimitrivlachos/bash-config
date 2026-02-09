@@ -13,7 +13,9 @@
 # Core System
 # ------------------------------------------------------------------------------
 alias ls='ls --color=auto'
-alias clearf='clear && ff'
+alias clear='\clear && ff'           # Clear screen and run fastfetch
+alias clearf='clear'                 # Legacy alias for clear with fastfetch
+alias clearall='\clear'              # Regular clear without fastfetch
 
 # ------------------------------------------------------------------------------
 # Conda/Mamba Environment Management
