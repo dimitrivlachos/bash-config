@@ -20,6 +20,7 @@
     "terminal",
     "terminalfont",
     "cpu",
+    "cputemp",
     "gpu",
     "memory",
     "swap",

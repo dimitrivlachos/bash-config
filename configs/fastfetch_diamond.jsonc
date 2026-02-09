@@ -56,6 +56,7 @@
       "keyColor": "magenta",
       "text": "birth=$(stat -c %W /); now=$(date +%s); age=$(( (now - birth) / 86400 )); echo $age days"
     },
+    { "type": "cputemp", "key": "Temp", "keyColor": "magenta" },
     { "type": "uptime", "key": "Uptime", "keyColor": "magenta" },
     { "type": "datetime", "key": "Date", "keyColor": "magenta" },
     {
