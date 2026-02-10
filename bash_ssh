@@ -21,17 +21,14 @@
 # SSH CONFIG MANAGEMENT
 # ==============================================================================
 
-# Setup SSH config via symlink or copy from secrets
-# Usage: bc_setup_ssh_config [copy]
-#   copy  — copy the file instead of symlinking (needed for NFS/older OpenSSH)
+# Setup SSH config via symlink to secrets
 bc_setup_ssh_config() {
-    local use_copy="${1:-false}"
     local ssh_dir="$HOME/.ssh"
     local config_file="$ssh_dir/config"
     local secrets_ssh_config="$BASH_CONFIG_DIR/secrets/ssh_config"
     local backup_suffix=".backup.$(date +%Y%m%d_%H%M%S)"
     
-    bc_log_debug "Setting up SSH config: $config_file (mode: ${use_copy})"
+    bc_log_debug "Setting up SSH config: $config_file -> $secrets_ssh_config"
     
     # Ensure SSH directory exists
     mkdir -p "$ssh_dir"
@@ -62,17 +59,10 @@ bc_setup_ssh_config() {
     fi
     bc_log_debug "Handled existing config file"
     
-    # Create symlink or copy, and set permissions
-    if [[ "$use_copy" == "true" || "$use_copy" == "copy" ]]; then
-        cp "$secrets_ssh_config" "$config_file"
-        chmod 600 "$config_file"
-        bc_log_success "SSH config copied from secrets repository"
-        bc_log_info "Note: run 'bc_setup_ssh_config copy' again to pick up changes"
-    else
-        ln -s "$secrets_ssh_config" "$config_file"
-        chmod 600 "$secrets_ssh_config"
-        bc_log_success "SSH config symlinked to secrets repository"
-    fi
+    # Create symlink and set permissions
+    ln -s "$secrets_ssh_config" "$config_file"
+    chmod 600 "$secrets_ssh_config"
+    bc_log_success "SSH config symlinked to secrets repository"
 
     # Also set up SK SSH key handles
     bc_setup_sk_ssh_handles
@@ -126,43 +116,33 @@ bc_setup_sk_ssh_handles() {
     fi
 }
 
-# SSH config validation helper — accepts both symlink and copy modes
+# SSH config validation helper
 bc_check_ssh_config() {
     local silent="${1:-false}"
     local config_file="$HOME/.ssh/config"
     local secrets_ssh_config="$BASH_CONFIG_DIR/secrets/ssh_config"
     
-    bc_log_debug "Checking SSH config: $config_file"
+    bc_log_debug "Checking SSH config: $config_file -> $secrets_ssh_config"
     
     if [[ ! -f "$secrets_ssh_config" ]]; then
         [[ "$silent" != "silent" ]] && bc_log_error "SSH config not found in secrets: $secrets_ssh_config"
         return 1
     fi
     
-    if [[ -L "$config_file" ]]; then
-        # Symlink mode — check target
-        local target=$(readlink "$config_file")
-        if [[ "$target" != "$secrets_ssh_config" ]]; then
-            [[ "$silent" != "silent" ]] && bc_log_warn "SSH config symlink points to wrong location: $target"
-            bc_log_debug "Symlink target mismatch: expected $secrets_ssh_config, got $target"
-            return 1
-        fi
-        [[ "$silent" != "silent" ]] && bc_log_success "SSH config correctly symlinked to secrets"
-    elif [[ -f "$config_file" ]]; then
-        # Copy mode — check content matches
-        if diff -q "$config_file" "$secrets_ssh_config" >/dev/null 2>&1; then
-            [[ "$silent" != "silent" ]] && bc_log_success "SSH config is an up-to-date copy of secrets"
-        else
-            [[ "$silent" != "silent" ]] && bc_log_warn "SSH config exists but differs from secrets (run 'bc_setup_ssh_config copy' to update)"
-            bc_log_debug "Config file content differs from secrets"
-            return 1
-        fi
-    else
-        [[ "$silent" != "silent" ]] && bc_log_warn "SSH config not found: $config_file"
-        bc_log_debug "No config file at: $config_file"
+    if [[ ! -L "$config_file" ]]; then
+        [[ "$silent" != "silent" ]] && bc_log_warn "SSH config is not a symlink to secrets"
+        bc_log_debug "Config file is not a symlink: $config_file"
         return 1
     fi
     
+    local target=$(readlink "$config_file")
+    if [[ "$target" != "$secrets_ssh_config" ]]; then
+        [[ "$silent" != "silent" ]] && bc_log_warn "SSH config symlink points to wrong location: $target"
+        bc_log_debug "Symlink target mismatch: expected $secrets_ssh_config, got $target"
+        return 1
+    fi
+    
+    [[ "$silent" != "silent" ]] && bc_log_success "SSH config correctly symlinked to secrets"
     bc_log_debug "SSH config validation passed"
     return 0
 }
@@ -673,8 +653,8 @@ bc_ssh_help() {
     echo -e "${BC_COLOR_BLUE}Connection Management:${BC_COLOR_RESET}"
     echo -e "  ${BC_COLOR_GREEN}bc_ssh_workday_setup${BC_COLOR_RESET}"
     echo -e "    Complete work day setup (config + master connections)"
-    echo -e "  ${BC_COLOR_GREEN}bc_setup_ssh_config [copy]${BC_COLOR_RESET}"
-    echo -e "    Set up SSH config from secrets — symlink (default) or copy for NFS/older SSH"
+    echo -e "  ${BC_COLOR_GREEN}bc_setup_ssh_config${BC_COLOR_RESET}"
+    echo -e "    Set up SSH config symlink to secrets (also links SK handles)"
     echo -e "  ${BC_COLOR_GREEN}bc_setup_sk_ssh_handles${BC_COLOR_RESET}"
     echo -e "    Symlink YubiKey SK key handles from secrets into ~/.ssh/"
     echo -e "  ${BC_COLOR_GREEN}bc_check_ssh_config [silent]${BC_COLOR_RESET}"
