@@ -63,6 +63,57 @@ bc_setup_ssh_config() {
     ln -s "$secrets_ssh_config" "$config_file"
     chmod 600 "$secrets_ssh_config"
     bc_log_success "SSH config symlinked to secrets repository"
+
+    # Also set up SK SSH key handles
+    bc_setup_sk_ssh_handles
+}
+
+# Symlink YubiKey SK SSH key handles from secrets into ~/.ssh/
+bc_setup_sk_ssh_handles() {
+    local ssh_dir="$HOME/.ssh"
+    local sk_dir="$BASH_CONFIG_DIR/secrets/sk_ssh_handles"
+
+    if [[ ! -d "$sk_dir" ]]; then
+        bc_log_debug "No SK SSH handles directory found: $sk_dir"
+        return 0
+    fi
+
+    mkdir -p "$ssh_dir"
+    chmod 700 "$ssh_dir"
+
+    local linked=0
+    local skipped=0
+    for handle in "$sk_dir"/id_ed25519_sk_*; do
+        [[ -f "$handle" ]] || continue
+        local name
+        name="$(basename "$handle")"
+        local target="$ssh_dir/$name"
+
+        if [[ -L "$target" ]] && [[ "$(readlink "$target")" == "$handle" ]]; then
+            bc_log_debug "SK handle already linked: $name"
+            ((skipped++))
+            continue
+        fi
+
+        # Back up any existing non-symlink file
+        if [[ -f "$target" && ! -L "$target" ]]; then
+            mv "$target" "${target}.backup.$(date +%Y%m%d_%H%M%S)"
+            bc_log_info "Backed up existing $name"
+        fi
+
+        ln -sfn "$handle" "$target"
+        chmod 600 "$handle"
+        bc_log_debug "Linked SK handle: $name"
+        ((linked++))
+    done
+
+    if [[ $linked -gt 0 ]]; then
+        bc_log_success "Linked $linked SK SSH key handle(s) into ~/.ssh/"
+    elif [[ $skipped -gt 0 ]]; then
+        bc_log_info "All $skipped SK SSH key handle(s) already linked"
+    else
+        bc_log_debug "No SK SSH key handles found to link"
+    fi
 }
 
 # SSH config validation helper
@@ -158,21 +209,26 @@ bc_ssh_workday_setup() {
         bc_log_success "SSH config is ready"
     fi
     echo
+
+    # 3. Ensure SK SSH key handles are symlinked
+    bc_log_info "🔑 Checking YubiKey SK key handles..."
+    bc_setup_sk_ssh_handles
+    echo
     
-    # 3. Start master connection to bastion
+    # 4. Start master connection to bastion
     bc_log_info "🏢 Starting bastion master connection..."
     bc_ssh_master_start bastion
     echo
-    
-    # 4. Show status
+
+    # 5. Show status
     bc_log_info "📊 Connection status:"
     bc_ssh_master_status
     echo
-    
+
     bc_log_success "🎉 Work day SSH setup complete!"
     bc_log_info "💡 All SSH connections will now use the shared master connection"
-    
-    # 5. Optionally start Diamond proxy
+
+    # 6. Optionally start Diamond proxy
     if [[ "$start_proxy" == "true" || "$start_proxy" == "proxy" ]]; then
         echo
         bc_log_info "🌐 Starting Diamond SOCKS proxy..."
@@ -598,7 +654,9 @@ bc_ssh_help() {
     echo -e "  ${BC_COLOR_GREEN}bc_ssh_workday_setup${BC_COLOR_RESET}"
     echo -e "    Complete work day setup (config + master connections)"
     echo -e "  ${BC_COLOR_GREEN}bc_setup_ssh_config${BC_COLOR_RESET}"
-    echo -e "    Set up SSH config symlink to secrets"
+    echo -e "    Set up SSH config symlink to secrets (also links SK handles)"
+    echo -e "  ${BC_COLOR_GREEN}bc_setup_sk_ssh_handles${BC_COLOR_RESET}"
+    echo -e "    Symlink YubiKey SK key handles from secrets into ~/.ssh/"
     echo -e "  ${BC_COLOR_GREEN}bc_check_ssh_config [silent]${BC_COLOR_RESET}"
     echo -e "    Validate SSH config setup"
     echo -e "  ${BC_COLOR_GREEN}bc_ssh_master_start <host>${BC_COLOR_RESET}"
