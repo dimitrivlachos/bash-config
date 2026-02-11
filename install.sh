@@ -7,6 +7,16 @@ DEFAULT_TARGET="$HOME/.bashrc"
 TARGET_LINK="$HOME/.bashrc_core"
 SECRETS_FILE="$CONFIG_REPO/secrets/bash_secrets.sh"
 
+# Initialize submodules (secrets directory)
+if [[ -f "$CONFIG_REPO/.gitmodules" ]]; then
+  echo "[INFO] Initializing git submodules..."
+  cd "$CONFIG_REPO"
+  git submodule update --init --recursive 2>/dev/null || {
+    echo "[WARN] Could not initialize secrets submodule (private repo access needed)"
+    echo "       You can set up secrets manually from the templates in secrets/"
+  }
+fi
+
 # Parse arguments
 SPECIALISATION="${1:-}"
 TARGET_BASHRC="${2:-$DEFAULT_TARGET}"
