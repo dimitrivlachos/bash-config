@@ -1,0 +1,644 @@
+#!/bin/bash
+# ==============================================================================
+# PROJECT WORKSPACE MANAGEMENT
+# ==============================================================================
+# Tools for creating and managing Git worktree-based project workspaces.
+#
+# Project Structure:
+#   project_name/
+#   ├── .bare/                     # Bare Git repository
+#   ├── .git                       # File pointing to .bare/
+#   ├── ENV/                       # Mamba virtual environment
+#   ├── project_name/              # Main worktree (default branch)
+#   ├── project_name_worktree1/    # Additional worktree
+#   └── project_name_worktree2/    # Additional worktree
+#
+# Usage:
+#   bc_project_create [--python <version>] <repo_url> <project_name> [worktree1 worktree2 ...]
+#   bc_project_add_worktree <worktree_name> [base_branch]
+#   bc_project_status [project_dir]
+#   bc_project_remove_worktree <worktree_name>
+#   bc_project_list_worktrees [project_dir]
+#   bc_project_help
+#
+# Quick Aliases:
+#   proj-create   → bc_project_create
+#   proj-add      → bc_project_add_worktree
+#   proj-status   → bc_project_status
+#   proj-ls       → bc_project_list_worktrees
+#   proj-rm       → bc_project_remove_worktree
+#   proj-help     → bc_project_help
+# ==============================================================================
+
+# ==============================================================================
+# CONFIGURATION
+# ==============================================================================
+
+# Python version for mamba environments (override in bash_secrets.sh or specialisation)
+# Leave empty to create an empty environment with no Python pre-installed.
+BC_PROJECT_PYTHON_VERSION="${BC_PROJECT_PYTHON_VERSION:-}"
+
+# Detect available mamba command
+_bc_project_mamba_cmd() {
+    if command -v micromamba &>/dev/null; then
+        echo "micromamba"
+    elif command -v mamba &>/dev/null; then
+        echo "mamba"
+    else
+        echo ""
+    fi
+}
+
+# Check whether a directory is a worktree-based project root
+# (has a .git file pointing to a bare repo, or has a .bare/ directory)
+_bc_project_is_project_root() {
+    local dir="${1:-.}"
+    if [[ -f "$dir/.git" ]] && grep -q "gitdir:" "$dir/.git" 2>/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+# Resolve the project name from existing worktrees or directory name
+_bc_project_detect_name() {
+    local dir="${1:-.}"
+    # Use the first worktree directory name as the project name
+    local first_wt
+    first_wt=$(git -C "$dir" worktree list 2>/dev/null | grep -v "(bare)" | head -1 | awk '{print $1}')
+    if [[ -n "$first_wt" ]]; then
+        basename "$first_wt"
+    else
+        basename "$(cd "$dir" && pwd)"
+    fi
+}
+
+# ==============================================================================
+# PROJECT CREATION
+# ==============================================================================
+
+# Create a new project workspace with worktrees and a mamba environment
+# Usage: bc_project_create [--python <version>|--empty] <repo_url> <project_name> [worktree1 worktree2 ...]
+#
+# Environment creation priority:
+#   1. --python <version> flag (explicit Python version)
+#   2. --empty flag (force empty environment, skip auto-detection)
+#   3. environment.yaml / environment.yml found in the cloned repo
+#   4. BC_PROJECT_PYTHON_VERSION variable (if set)
+#   5. Empty environment (no Python pre-installed)
+#
+# Examples:
+#   bc_project_create git@github.com:user/fast-feedback-service.git ffs altair spica sol
+#   bc_project_create --python 3.12 git@github.com:user/my-app.git my_app
+#   bc_project_create --empty git@github.com:user/repo.git myrepo dev
+#   bc_project_create https://github.com/user/repo.git myrepo dev feature1
+bc_project_create() {
+    local python_version=""
+    local force_empty=false
+
+    # --- Parse optional flags ----------------------------------------------
+    while [[ "${1:-}" == --* ]]; do
+        case "$1" in
+            --python)
+                if [[ -z "${2:-}" ]]; then
+                    bc_log_error "--python requires a version argument (e.g. --python 3.12)"
+                    return 1
+                fi
+                python_version="$2"
+                shift 2
+                ;;
+            --empty)
+                force_empty=true
+                shift
+                ;;
+            *)
+                bc_log_error "Unknown option: $1"
+                return 1
+                ;;
+        esac
+    done
+
+    local repo_url="$1"
+    local project_name="$2"
+    shift 2 2>/dev/null
+    local worktree_names=("$@")
+
+    # --- Validate arguments ------------------------------------------------
+    if [[ -z "$repo_url" || -z "$project_name" ]]; then
+        bc_log_error "Usage: bc_project_create [--python <version>|--empty] <repo_url> <project_name> [worktree1 ...]"
+        bc_log_info "Example: bc_project_create git@github.com:user/repo.git ffs altair spica sol"
+        bc_log_info "         bc_project_create --python 3.12 git@github.com:user/repo.git myapp"
+        bc_log_info "         bc_project_create --empty git@github.com:user/repo.git myapp"
+        return 1
+    fi
+
+    if [[ -d "$project_name" ]]; then
+        bc_log_error "Directory already exists: $project_name"
+        return 1
+    fi
+
+    bc_log_info "Creating project workspace: $project_name"
+    echo
+
+    # --- 1. Create project root directory ----------------------------------
+    bc_log_info "Creating project directory..."
+    mkdir -p "$project_name" || { bc_log_error "Failed to create directory: $project_name"; return 1; }
+    cd "$project_name" || { bc_log_error "Failed to enter project directory"; return 1; }
+    local project_root
+    project_root="$(pwd)"
+
+    # --- 2. Clone as bare repository ---------------------------------------
+    bc_log_info "Cloning repository (bare)..."
+    local bare_dir=".bare"
+    if ! git clone --bare "$repo_url" "$bare_dir" 2>&1; then
+        bc_log_error "Failed to clone repository: $repo_url"
+        cd ..
+        rm -rf "$project_name"
+        return 1
+    fi
+    bc_log_success "Repository cloned"
+
+    # Point .git to the bare repo so git commands work from the project root
+    echo "gitdir: ./$bare_dir" > .git
+
+    # Bare clones don't set up the fetch refspec properly — fix it
+    git -C "$bare_dir" config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
+
+    # Fetch all remote branches
+    bc_log_info "Fetching remote branches..."
+    git fetch origin 2>/dev/null
+    bc_log_success "Remote branches fetched"
+    echo
+
+    # --- 3. Detect default branch ------------------------------------------
+    local default_branch
+    default_branch=$(git -C "$bare_dir" symbolic-ref --short HEAD 2>/dev/null)
+    if [[ -z "$default_branch" ]]; then
+        default_branch=$(git remote show origin 2>/dev/null | grep "HEAD branch" | awk '{print $NF}')
+    fi
+    if [[ -z "$default_branch" ]]; then
+        default_branch="main"
+        bc_log_warn "Could not detect default branch, assuming: $default_branch"
+    else
+        bc_log_info "Default branch: $default_branch"
+    fi
+
+    # --- 4. Create main worktree ------------------------------------------
+    bc_log_info "Creating main worktree: $project_name/ ($default_branch)"
+    if ! git worktree add "$project_name" "$default_branch" 2>/dev/null; then
+        if ! git worktree add "$project_name" "origin/$default_branch" --checkout -b "$default_branch" 2>/dev/null; then
+            bc_log_error "Failed to create main worktree for branch: $default_branch"
+            cd ..
+            return 1
+        fi
+    fi
+    bc_log_success "Main worktree created: $project_name/ ($default_branch)"
+
+    # --- 5. Create additional worktrees ------------------------------------
+    if [[ ${#worktree_names[@]} -gt 0 ]]; then
+        echo
+        bc_log_info "Creating additional worktrees..."
+        for wt_name in "${worktree_names[@]}"; do
+            local wt_dir="${project_name}_${wt_name}"
+            local wt_branch="$wt_name"
+
+            if git show-ref --verify --quiet "refs/remotes/origin/$wt_branch" 2>/dev/null; then
+                # Remote branch exists — check it out
+                bc_log_info "  Checking out existing branch: $wt_branch"
+                if git worktree add "$wt_dir" "origin/$wt_branch" --checkout -b "$wt_branch" 2>/dev/null; then
+                    bc_log_success "  $wt_dir/ ($wt_branch — from remote)"
+                elif git worktree add "$wt_dir" "$wt_branch" 2>/dev/null; then
+                    bc_log_success "  $wt_dir/ ($wt_branch — local)"
+                else
+                    bc_log_warn "  Failed to create worktree: $wt_dir ($wt_branch)"
+                fi
+            else
+                # Branch doesn't exist — create new branch from default
+                bc_log_info "  Creating new branch: $wt_branch (from $default_branch)"
+                if git worktree add -b "$wt_branch" "$wt_dir" "$default_branch" 2>/dev/null; then
+                    bc_log_success "  $wt_dir/ ($wt_branch — new branch)"
+                else
+                    bc_log_warn "  Failed to create worktree: $wt_dir ($wt_branch)"
+                fi
+            fi
+        done
+    fi
+
+    # --- 6. Create mamba environment ---------------------------------------
+    echo
+    local mamba_cmd
+    mamba_cmd=$(_bc_project_mamba_cmd)
+
+    # Detect environment file in the main worktree
+    local env_file=""
+    for candidate in "$project_root/$project_name/environment.yaml" "$project_root/$project_name/environment.yml"; do
+        if [[ -f "$candidate" ]]; then
+            env_file="$candidate"
+            break
+        fi
+    done
+
+    if [[ -n "$mamba_cmd" ]]; then
+        local mamba_create_ok=false
+
+        if [[ -n "$python_version" ]]; then
+            # 1. Explicit --python flag takes priority
+            bc_log_info "Creating mamba environment (Python ${python_version})..."
+            if $mamba_cmd create -p "$project_root/ENV" "python=${python_version}" -y -q 2>&1; then
+                mamba_create_ok=true
+            fi
+        elif $force_empty; then
+            # 2. --empty flag: skip auto-detection, create empty env
+            bc_log_info "Creating mamba environment (empty)..."
+            if $mamba_cmd create -p "$project_root/ENV" -y -q 2>&1; then
+                mamba_create_ok=true
+            fi
+        elif [[ -n "$env_file" ]]; then
+            # 2. Found environment.yaml/yml in the repo
+            bc_log_info "Creating mamba environment from $(basename "$env_file")..."
+            if $mamba_cmd create -p "$project_root/ENV" -f "$env_file" -y -q 2>&1; then
+                mamba_create_ok=true
+            fi
+        elif [[ -n "$BC_PROJECT_PYTHON_VERSION" ]]; then
+            # 3. Fall back to config variable
+            bc_log_info "Creating mamba environment (Python ${BC_PROJECT_PYTHON_VERSION})..."
+            if $mamba_cmd create -p "$project_root/ENV" "python=${BC_PROJECT_PYTHON_VERSION}" -y -q 2>&1; then
+                mamba_create_ok=true
+            fi
+        else
+            # 4. Empty environment
+            bc_log_info "Creating mamba environment (empty)..."
+            if $mamba_cmd create -p "$project_root/ENV" -y -q 2>&1; then
+                mamba_create_ok=true
+            fi
+        fi
+
+        if $mamba_create_ok; then
+            if [[ -d "$project_root/ENV" ]]; then
+                bc_log_success "Environment created: ENV/"
+                bc_log_info "Activate with: mae (from project root or any worktree)"
+            else
+                bc_log_warn "Mamba reported success but environment appears incomplete"
+                bc_log_info "Create it manually: $mamba_cmd create -p $(pwd)/ENV"
+            fi
+        else
+            bc_log_warn "Failed to create mamba environment — create it manually later"
+            bc_log_info "Create it manually: $mamba_cmd create -p $(pwd)/ENV"
+        fi
+    else
+        bc_log_warn "Neither mamba nor micromamba found — skipping environment creation"
+        bc_log_info "Create it manually: mamba create -p $(pwd)/ENV"
+    fi
+
+    # --- 7. Summary --------------------------------------------------------
+    echo
+    _bc_project_print_summary "$project_root" "$project_name" "$default_branch" "${worktree_names[@]}"
+    cd "$project_root" || true
+}
+
+# ==============================================================================
+# WORKTREE MANAGEMENT
+# ==============================================================================
+
+# Add a new worktree to an existing project
+# Usage: bc_project_add_worktree <worktree_name> [base_branch]
+#   Run from the project root directory.
+bc_project_add_worktree() {
+    local worktree_name="$1"
+    local base_branch="${2:-}"
+
+    if [[ -z "$worktree_name" ]]; then
+        bc_log_error "Usage: bc_project_add_worktree <worktree_name> [base_branch]"
+        return 1
+    fi
+
+    if ! _bc_project_is_project_root "."; then
+        bc_log_error "Not a worktree-based project root (run from the project directory)"
+        return 1
+    fi
+
+    local project_name
+    project_name=$(_bc_project_detect_name ".")
+    local wt_dir="${project_name}_${worktree_name}"
+
+    if [[ -d "$wt_dir" ]]; then
+        bc_log_error "Worktree directory already exists: $wt_dir"
+        return 1
+    fi
+
+    # Determine base branch
+    if [[ -z "$base_branch" ]]; then
+        base_branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "main")
+    fi
+
+    bc_log_info "Adding worktree: $wt_dir"
+
+    # Fetch latest
+    git fetch origin --quiet 2>/dev/null
+
+    if git show-ref --verify --quiet "refs/remotes/origin/$worktree_name" 2>/dev/null; then
+        bc_log_info "Checking out existing remote branch: $worktree_name"
+        if git worktree add "$wt_dir" "origin/$worktree_name" --checkout -b "$worktree_name" 2>/dev/null; then
+            bc_log_success "Worktree created: $wt_dir/ ($worktree_name — from remote)"
+        elif git worktree add "$wt_dir" "$worktree_name" 2>/dev/null; then
+            bc_log_success "Worktree created: $wt_dir/ ($worktree_name — local)"
+        else
+            bc_log_error "Failed to create worktree: $wt_dir"
+            return 1
+        fi
+    else
+        bc_log_info "Creating new branch: $worktree_name (from $base_branch)"
+        if git worktree add -b "$worktree_name" "$wt_dir" "$base_branch" 2>/dev/null; then
+            bc_log_success "Worktree created: $wt_dir/ ($worktree_name — new branch)"
+        else
+            bc_log_error "Failed to create worktree: $wt_dir"
+            return 1
+        fi
+    fi
+}
+
+# Remove a worktree from a project
+# Usage: bc_project_remove_worktree <worktree_name>
+#   Run from the project root directory.
+bc_project_remove_worktree() {
+    local worktree_name="$1"
+
+    if [[ -z "$worktree_name" ]]; then
+        bc_log_error "Usage: bc_project_remove_worktree <worktree_name>"
+        return 1
+    fi
+
+    if ! _bc_project_is_project_root "."; then
+        bc_log_error "Not a worktree-based project root (run from the project directory)"
+        return 1
+    fi
+
+    local project_name
+    project_name=$(_bc_project_detect_name ".")
+    local wt_dir="${project_name}_${worktree_name}"
+
+    # Also try the raw name in case someone passes the full directory name
+    if [[ ! -d "$wt_dir" ]]; then
+        if [[ -d "$worktree_name" ]]; then
+            wt_dir="$worktree_name"
+        else
+            bc_log_error "Worktree directory not found: $wt_dir"
+            bc_log_info "Available worktrees:"
+            git worktree list 2>/dev/null | grep -v "(bare)"
+            return 1
+        fi
+    fi
+
+    echo -e "${BC_COLOR_YELLOW}This will remove worktree: $wt_dir${BC_COLOR_RESET}"
+    read -r -p "Continue? [y/N] " confirm
+    if [[ "$confirm" != [yY] ]]; then
+        bc_log_info "Cancelled"
+        return 0
+    fi
+
+    bc_log_info "Removing worktree: $wt_dir"
+    if git worktree remove "$wt_dir" --force 2>/dev/null; then
+        bc_log_success "Worktree removed: $wt_dir"
+    else
+        bc_log_error "Failed to remove worktree: $wt_dir"
+        bc_log_info "Try manually: git worktree remove $wt_dir --force"
+        return 1
+    fi
+}
+
+# List all worktrees in a project
+# Usage: bc_project_list_worktrees [project_dir]
+bc_project_list_worktrees() {
+    local project_dir="${1:-.}"
+
+    cd "$project_dir" 2>/dev/null || { bc_log_error "Cannot enter directory: $project_dir"; return 1; }
+
+    if ! _bc_project_is_project_root "."; then
+        bc_log_error "Not a worktree-based project root"
+        return 1
+    fi
+
+    git worktree list 2>/dev/null | grep -v "(bare)"
+    cd - >/dev/null 2>&1 || true
+}
+
+# ==============================================================================
+# PROJECT STATUS
+# ==============================================================================
+
+# Show status of a worktree-based project
+# Usage: bc_project_status [project_dir]
+bc_project_status() {
+    local project_dir="${1:-.}"
+    local original_dir="$PWD"
+
+    cd "$project_dir" 2>/dev/null || { bc_log_error "Cannot enter directory: $project_dir"; return 1; }
+
+    if ! _bc_project_is_project_root "."; then
+        bc_log_error "Not a worktree-based project directory"
+        cd "$original_dir" || true
+        return 1
+    fi
+
+    local project_name
+    project_name=$(basename "$(pwd)")
+
+    echo -e "${BC_COLOR_CYAN}Project: ${BC_COLOR_RESET}$project_name"
+    echo -e "${BC_COLOR_CYAN}Root:    ${BC_COLOR_RESET}$(pwd)"
+    echo
+
+    # Environment status
+    if [[ -d "ENV" ]]; then
+        local env_python
+        env_python=$(./ENV/bin/python --version 2>/dev/null || echo "unknown")
+        echo -e "${BC_COLOR_BLUE}Environment:${BC_COLOR_RESET} ENV/ ($env_python)"
+    else
+        echo -e "${BC_COLOR_YELLOW}Environment:${BC_COLOR_RESET} None (create with: mamba create -p ./ENV python)"
+    fi
+    echo
+
+    # Remote info
+    local remote_url
+    remote_url=$(git remote get-url origin 2>/dev/null || echo "unknown")
+    echo -e "${BC_COLOR_BLUE}Remote:${BC_COLOR_RESET} $remote_url"
+    echo
+
+    # Worktrees
+    echo -e "${BC_COLOR_BLUE}Worktrees:${BC_COLOR_RESET}"
+    local wt_count=0
+    while IFS= read -r line; do
+        local wt_path wt_commit wt_branch
+        wt_path=$(echo "$line" | awk '{print $1}')
+        wt_commit=$(echo "$line" | awk '{print $2}')
+        wt_branch=$(echo "$line" | grep -oP '\[.*?\]' | tr -d '[]')
+
+        local wt_name
+        wt_name=$(basename "$wt_path")
+
+        # Uncommitted changes
+        local status_indicator=""
+        if [[ -d "$wt_path" ]]; then
+            local changes
+            changes=$(git -C "$wt_path" status --porcelain 2>/dev/null | wc -l)
+            if [[ "$changes" -gt 0 ]]; then
+                status_indicator=" ${BC_COLOR_YELLOW}(${changes} uncommitted)${BC_COLOR_RESET}"
+            fi
+        fi
+
+        # Ahead / behind remote
+        local ahead_behind=""
+        if [[ -n "$wt_branch" && "$wt_branch" != "detached" ]]; then
+            local ahead behind
+            ahead=$(git -C "$wt_path" rev-list --count "origin/$wt_branch..HEAD" 2>/dev/null || echo "")
+            behind=$(git -C "$wt_path" rev-list --count "HEAD..origin/$wt_branch" 2>/dev/null || echo "")
+            if [[ -n "$ahead" && "$ahead" != "0" ]]; then
+                ahead_behind+=" ${BC_COLOR_GREEN}↑${ahead}${BC_COLOR_RESET}"
+            fi
+            if [[ -n "$behind" && "$behind" != "0" ]]; then
+                ahead_behind+=" ${BC_COLOR_RED}↓${behind}${BC_COLOR_RESET}"
+            fi
+        fi
+
+        echo -e "  ${BC_COLOR_GREEN}$wt_name/${BC_COLOR_RESET} → ${BC_COLOR_GRAY}$wt_branch${BC_COLOR_RESET} (${wt_commit:0:8})${status_indicator}${ahead_behind}"
+        ((wt_count++))
+    done < <(git worktree list 2>/dev/null | grep -v "^$" | grep -v "(bare)")
+
+    if [[ $wt_count -eq 0 ]]; then
+        echo -e "  ${BC_COLOR_YELLOW}No worktrees found${BC_COLOR_RESET}"
+    fi
+
+    cd "$original_dir" || true
+}
+
+# ==============================================================================
+# HELPERS
+# ==============================================================================
+
+# Print summary after project creation
+_bc_project_print_summary() {
+    local project_root="$1"
+    local project_name="$2"
+    local default_branch="$3"
+    shift 3
+    local worktree_names=("$@")
+
+    echo -e "${BC_COLOR_CYAN}┌──────────────────────────────────────────────────┐${BC_COLOR_RESET}"
+    echo -e "${BC_COLOR_CYAN}│${BC_COLOR_RESET}  Project Summary"
+    echo -e "${BC_COLOR_CYAN}├──────────────────────────────────────────────────┤${BC_COLOR_RESET}"
+    echo -e "${BC_COLOR_CYAN}│${BC_COLOR_RESET}  $project_root"
+    echo -e "${BC_COLOR_CYAN}│${BC_COLOR_RESET}"
+
+    if [[ -d "$project_root/ENV" ]]; then
+        echo -e "${BC_COLOR_CYAN}│${BC_COLOR_RESET}  ├── ENV/  ${BC_COLOR_GRAY}(mamba environment)${BC_COLOR_RESET}"
+    fi
+
+    echo -e "${BC_COLOR_CYAN}│${BC_COLOR_RESET}  ├── ${project_name}/  ${BC_COLOR_GRAY}($default_branch)${BC_COLOR_RESET}"
+
+    local last_idx=$(( ${#worktree_names[@]} - 1 ))
+    for i in "${!worktree_names[@]}"; do
+        local connector="├──"
+        [[ "$i" -eq "$last_idx" ]] && connector="└──"
+        echo -e "${BC_COLOR_CYAN}│${BC_COLOR_RESET}  ${connector} ${project_name}_${worktree_names[$i]}/  ${BC_COLOR_GRAY}(${worktree_names[$i]})${BC_COLOR_RESET}"
+    done
+
+    if [[ ${#worktree_names[@]} -eq 0 ]]; then
+        echo -e "${BC_COLOR_CYAN}│${BC_COLOR_RESET}  └── .bare/  ${BC_COLOR_GRAY}(bare repository)${BC_COLOR_RESET}"
+    fi
+
+    echo -e "${BC_COLOR_CYAN}│${BC_COLOR_RESET}"
+    echo -e "${BC_COLOR_CYAN}│${BC_COLOR_RESET}  Quick start:"
+    echo -e "${BC_COLOR_CYAN}│${BC_COLOR_RESET}    cd ${project_name}/${project_name}  ${BC_COLOR_GRAY}# main worktree${BC_COLOR_RESET}"
+    echo -e "${BC_COLOR_CYAN}│${BC_COLOR_RESET}    mae                        ${BC_COLOR_GRAY}# activate environment${BC_COLOR_RESET}"
+    echo -e "${BC_COLOR_CYAN}│${BC_COLOR_RESET}    proj-status                ${BC_COLOR_GRAY}# view project status${BC_COLOR_RESET}"
+    echo -e "${BC_COLOR_CYAN}└──────────────────────────────────────────────────┘${BC_COLOR_RESET}"
+}
+
+# ==============================================================================
+# HELP
+# ==============================================================================
+
+bc_project_help() {
+    cat << 'HELPEOF'
+═══════════════════════════════════════════════════════════════════════════════
+  PROJECT WORKSPACE MANAGEMENT — COMMAND REFERENCE
+═══════════════════════════════════════════════════════════════════════════════
+
+  OVERVIEW
+  Creates Git worktree-based project workspaces with shared mamba environments.
+
+  Each project follows this structure:
+    project_name/
+    ├── .bare/                       # Bare Git repository
+    ├── .git                         # Points to .bare/
+    ├── ENV/                         # Shared mamba virtual environment
+    ├── project_name/                # Main worktree (default branch)
+    ├── project_name_worktree1/      # Additional worktree
+    └── project_name_worktree2/      # Additional worktree
+
+  COMMANDS
+
+    proj-create [--python <version>|--empty] <repo_url> <name> [worktree1 worktree2 ...]
+      Create a new project workspace with optional worktrees.
+
+      Environment creation priority:
+        1. --python <version> flag (explicit Python version)
+        2. --empty flag (force empty environment, skip auto-detection)
+        3. environment.yaml / environment.yml found in the cloned repo
+        4. BC_PROJECT_PYTHON_VERSION variable (if set)
+        5. Empty environment (no Python pre-installed)
+
+      Examples:
+        proj-create git@github.com:user/fast-feedback.git ffs altair spica sol
+        proj-create --python 3.12 git@github.com:user/my-app.git my_app
+        proj-create --empty git@github.com:user/repo.git myrepo dev
+        proj-create https://github.com/user/repo.git myrepo dev feature1
+
+    proj-add <worktree_name> [base_branch]
+      Add a new worktree to the current project.
+      If a matching remote branch exists, it will be checked out.
+      Otherwise a new branch is created from base_branch (default: main).
+
+      Examples:
+        proj-add vega               # new branch from default
+        proj-add hotfix main        # new branch from main
+
+    proj-rm <worktree_name>
+      Remove a worktree (with confirmation prompt).
+
+      Examples:
+        proj-rm spica
+
+    proj-status [project_dir]
+      Show project status: worktrees, branches, uncommitted changes,
+      ahead/behind counts, and environment info.
+
+      Examples:
+        proj-status              # current directory
+        proj-status ~/projects/ffs
+
+    proj-ls [project_dir]
+      List all worktrees in a project.
+
+  CONFIGURATION
+    BC_PROJECT_PYTHON_VERSION   Python version for new environments (default: empty/none)
+                                Set to e.g. "3.12" to pre-install Python in new envs.
+
+  TIPS
+    • All worktrees share the same Git history — commits are visible everywhere
+    • Use 'mae' from any worktree to activate the shared ENV/ environment
+    • Worktrees are lightweight — create one per feature branch
+    • The .bare/ directory is the actual repository; worktrees are views into it
+
+═══════════════════════════════════════════════════════════════════════════════
+HELPEOF
+}
+
+# ==============================================================================
+# ALIASES
+# ==============================================================================
+
+alias proj-create='bc_project_create'
+alias proj-add='bc_project_add_worktree'
+alias proj-rm='bc_project_remove_worktree'
+alias proj-status='bc_project_status'
+alias proj-ls='bc_project_list_worktrees'
+alias proj-help='bc_project_help'

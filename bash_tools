@@ -453,6 +453,7 @@ bc_help() {
         echo "  history   - History management (hhelp)"
         echo "  ssh       - SSH management (ssh-help)"
         echo "  git       - Git configuration"
+        echo "  project   - Project workspace management (proj-help)"
         echo "  config    - Configuration validation and info"
         echo "  update    - Update management"
         echo
@@ -496,6 +497,13 @@ bc_help() {
             echo "  secrets/gitconfig_user_*   - User credentials (gitignored)"
             echo
             echo -e "${BC_COLOR_GRAY}Run 'git aliases' to see all available git shortcuts${BC_COLOR_RESET}"
+            ;;
+        project)
+            if command -v bc_project_help &>/dev/null; then
+                bc_project_help
+            else
+                bc_log_warn "Project module not loaded"
+            fi
             ;;
         config)
             echo -e "${BC_COLOR_CYAN}⚙️ Configuration Management:${BC_COLOR_RESET}"
