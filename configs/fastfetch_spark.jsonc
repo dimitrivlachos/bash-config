@@ -47,6 +47,12 @@
       "keyColor": "magenta",
       "text": "cpu=$(sensors 2>/dev/null | awk '/Tctl|Tdie|Package id 0:/{gsub(/\\+/,\"\"); print $2; exit}'); if [ -z \"$cpu\" ]; then cpu=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null | awk '{printf \"%.1f°C\", $1/1000}'); fi; gpu=$(nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader,nounits 2>/dev/null | awk '{print $1\"°C\"}' || echo 'N/A'); printf '\\033[1;32mCPU:\\033[0m %s \\033[90m|\\033[0m \\033[1;32mGPU:\\033[0m %s\\n' \"${cpu:-N/A}\" \"$gpu\""
     },
+    {
+      "type": "command",
+      "key": "  Load ",
+      "keyColor": "magenta",
+      "text": "echo \"$(awk '{print $1, $2, $3}' /proc/loadavg) ($(nproc) cores)\""
+    },
     { "type": "uptime",   "key": "  Uptime ", "keyColor": "magenta" },
     { "type": "datetime", "key": "  DateTime ", "keyColor": "magenta" },
     { "type": "custom", "format": "\u001b[90m└────────────────────────────────────────────────────┘" },
