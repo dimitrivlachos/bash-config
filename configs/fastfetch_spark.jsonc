@@ -1,12 +1,14 @@
 {
   "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
   "logo": {
-    "type": "builtin",
-    "width": 28,
-    "height": 14,
+    "type": "file",
+    "source": "$BASH_CONFIG_DIR/configs/logo_nvidia.txt",
+    "color": {"1": "green"},
+    "width": 1,
+    "height": 22,
     "padding": {
-      "top": 3,
-      "left": 3
+      "top": 1,
+      "left": 0
     }
   },
   "modules": [
