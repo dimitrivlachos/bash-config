@@ -19,7 +19,14 @@ alias tsup='sudo tailscale up --accept-routes --accept-dns --ssh && echo "✅ Ta
 # Fastfetch Configuration
 # ------------------------------------------------------------------------------
 # Not exporting FASTFETCH_BIN as the binary is already in the PATH
-export FASTFETCH_CONFIG="$BASH_CONFIG_DIR/configs/fastfetch_frostpaw.jsonc"
+# Pick an ARM-friendly config on aarch64, otherwise use the default Frostpaw one.
+if [ -z "${FASTFETCH_CONFIG:-}" ]; then
+  if [ "$(uname -m)" = "aarch64" ]; then
+    export FASTFETCH_CONFIG="$BASH_CONFIG_DIR/configs/fastfetch_spark.jsonc"
+  else
+    export FASTFETCH_CONFIG="$BASH_CONFIG_DIR/configs/fastfetch_frostpaw.jsonc"
+  fi
+fi
 
 # ------------------------------------------------------------------------------
 # Mamba Compatibility
