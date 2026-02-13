@@ -349,8 +349,15 @@ bc_update_config() {
       
       bc_log_info "Updating bash-config..."
       if git merge --ff-only origin/main; then
-        bc_log_success "Successfully updated to latest version"
-        bc_log_info "Restart your shell or run: source ~/.bashrc"
+        bc_log_info "Updating submodules..."
+        if git submodule update --init --recursive; then
+          bc_log_success "Successfully updated to latest version"
+          bc_log_info "Restart your shell or run: source ~/.bashrc"
+        else
+          bc_log_error "Submodule update failed. You may need to fix submodules manually."
+          cd "$original_dir"
+          return 1
+        fi
       else
         bc_log_error "Update failed. You may need to resolve conflicts manually."
         cd "$original_dir"
