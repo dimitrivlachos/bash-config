@@ -147,6 +147,25 @@ bc_check_ssh_config() {
     return 0
 }
 
+# Fix SSH directory and file permissions to meet OpenSSH's strict requirements
+bc_fix_ssh_permissions() {
+    local ssh_dir="$HOME/.ssh"
+
+    chmod 700 "$ssh_dir"                          # Only owner can read/write/enter
+    chmod 600 "$ssh_dir"/config 2>/dev/null       # Only owner can read/write SSH config
+    chmod 600 "$ssh_dir"/id_* 2>/dev/null         # Private keys: owner read/write only
+    chmod 644 "$ssh_dir"/id_*.pub 2>/dev/null     # Public keys: owner read/write, others read
+    chmod 600 "$ssh_dir"/authorized_keys 2>/dev/null  # Authorised keys: owner read/write only
+    chmod 600 "$ssh_dir"/known_hosts 2>/dev/null  # Known hosts: owner read/write only
+
+    # Also fix permissions on the secrets config (symlink target)
+    if [[ -n "$BASH_CONFIG_DIR" && -f "$BASH_CONFIG_DIR/secrets/ssh_config" ]]; then
+        chmod 600 "$BASH_CONFIG_DIR/secrets/ssh_config"  # Symlink target must also be 600
+    fi
+
+    bc_log_success "SSH permissions fixed"
+}
+
 # ==============================================================================
 # MASTER CONNECTION MANAGEMENT
 # ==============================================================================
@@ -659,6 +678,8 @@ bc_ssh_help() {
     echo -e "    Symlink YubiKey SK key handles from secrets into ~/.ssh/"
     echo -e "  ${BC_COLOR_GREEN}bc_check_ssh_config [silent]${BC_COLOR_RESET}"
     echo -e "    Validate SSH config setup"
+    echo -e "  ${BC_COLOR_GREEN}bc_fix_ssh_permissions${BC_COLOR_RESET}"
+    echo -e "    Fix ~/.ssh directory and file permissions to meet OpenSSH requirements"
     echo -e "  ${BC_COLOR_GREEN}bc_ssh_master_start <host>${BC_COLOR_RESET}"
     echo -e "    Start master connection to host"
     echo -e "  ${BC_COLOR_GREEN}bc_ssh_master_status${BC_COLOR_RESET}"
@@ -679,10 +700,11 @@ bc_ssh_help() {
     echo -e "    Shortcut: force cleanup all SSH agents with confirmation prompt"
     echo
     echo -e "${BC_COLOR_BLUE}Quick Aliases:${BC_COLOR_RESET}"
-    echo -e "  ${BC_COLOR_GREEN}ssh-setup${BC_COLOR_RESET}    → bc_ssh_workday_setup"
-    echo -e "  ${BC_COLOR_GREEN}ssh-status${BC_COLOR_RESET}   → bc_ssh_master_status"
-    echo -e "  ${BC_COLOR_GREEN}ssh-master${BC_COLOR_RESET}   → bc_ssh_master_start"
-    echo -e "  ${BC_COLOR_GREEN}ssh-help${BC_COLOR_RESET}     → bc_ssh_help"
+    echo -e "  ${BC_COLOR_GREEN}ssh-setup${BC_COLOR_RESET}       → bc_ssh_workday_setup"
+    echo -e "  ${BC_COLOR_GREEN}ssh-fix-perms${BC_COLOR_RESET}   → bc_fix_ssh_permissions"
+    echo -e "  ${BC_COLOR_GREEN}ssh-status${BC_COLOR_RESET}      → bc_ssh_master_status"
+    echo -e "  ${BC_COLOR_GREEN}ssh-master${BC_COLOR_RESET}      → bc_ssh_master_start"
+    echo -e "  ${BC_COLOR_GREEN}ssh-help${BC_COLOR_RESET}        → bc_ssh_help"
     echo
     echo -e "${BC_COLOR_BLUE}Examples:${BC_COLOR_RESET}"
     echo -e "  ${BC_COLOR_GRAY}# Full work day setup${BC_COLOR_RESET}"
@@ -732,6 +754,7 @@ diamond-proxy-list() {
 # Simple aliases for common operations
 alias ssh-setup='bc_ssh_workday_setup proxy'
 alias ssh-setup-only='bc_ssh_workday_setup false'
+alias ssh-fix-perms='bc_fix_ssh_permissions'
 alias ssh-status='bc_ssh_master_status'
 alias ssh-master='bc_ssh_master_start'
 alias ssh-help='bc_ssh_help'
