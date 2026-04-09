@@ -22,3 +22,9 @@ export DIR_LENGTH="short"      # Directory display: "short" (\W) or "long" (\w)
 # Build Tools
 # ------------------------------------------------------------------------------
 export CMAKE_GENERATOR="${CMAKE_GENERATOR:-Ninja}"
+
+# ------------------------------------------------------------------------------
+# PATH
+# ------------------------------------------------------------------------------
+# Guard against duplicate entries when opening multiple terminals (each sources this file)
+[[ ":$PATH:" != *":$HOME/.local/bin:"* ]] && export PATH="$HOME/.local/bin:$PATH"
