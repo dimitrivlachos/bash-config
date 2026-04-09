@@ -13,7 +13,16 @@
 # Tailscale VPN Management
 # ------------------------------------------------------------------------------
 alias tsdown='sudo tailscale down && echo "✅ Tailscale disconnected"'
-alias tsup='sudo tailscale up --accept-routes --accept-dns --ssh && echo "✅ Tailscale connected"'
+# alias tsup='sudo tailscale up --accept-routes --accept-dns --ssh && echo "✅ Tailscale connected"'
+# Allow passing additional arguments to tsup, such as --reset
+tsup() {
+  if sudo tailscale up --accept-routes --accept-dns --ssh "$@"; then
+    echo "✅ Tailscale connected"
+  else
+    echo "❌ Tailscale failed to connect. Try: tsup --reset"
+    return 1
+  fi
+}
 
 # ------------------------------------------------------------------------------
 # Fastfetch Configuration
