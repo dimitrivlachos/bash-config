@@ -66,6 +66,12 @@
       "keyColor": "magenta",
       "text": "cpu=$(sensors coretemp-isa-0000 2>/dev/null | awk '/Package id 0:/{gsub(/\\+/,\"\"); print $4}'); gpu=$(nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader,nounits 2>/dev/null | awk '{print $1\"°C\"}'); if [ -n \"$gpu\" ]; then echo -e \"\\033[1;32mCPU:\\033[0m $cpu \\033[90m|\\033[0m \\033[1;32mGPU:\\033[0m $gpu\"; else echo -e \"\\033[1;32mCPU:\\033[0m $cpu\"; fi"
     },
+    {
+      "type": "command",
+      "key": "  Load ",
+      "keyColor": "magenta",
+      "text": "echo \"$(awk '{print $1, $2, $3}' /proc/loadavg) ($(nproc) cores)\""
+    },
     { "type": "uptime",   "key": "  Uptime ", "keyColor": "magenta" },
     { "type": "datetime", "key": "  DateTime ", "keyColor": "magenta" },
     {
