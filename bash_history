@@ -67,6 +67,20 @@ esac
 touch "$HISTFILE" 2>/dev/null || true
 
 # ==============================================================================
+# ATUIN DETECTION
+# ==============================================================================
+# Check for atuin at startup to select the appropriate history backend.
+# PROMPT_COMMAND integration is deferred to bc_history_init(), which bashrc_core
+# calls after setting PROMPT_COMMAND="set_prompt", so appending is safe.
+if command -v atuin >/dev/null 2>&1; then
+  export BC_ATUIN_ACTIVE=1
+  bc_log_debug "History: atuin detected — will use as primary backend"
+else
+  export BC_ATUIN_ACTIVE=0
+  bc_log_debug "History: atuin not found — custom sync will be used"
+fi
+
+# ==============================================================================
 # REAL-TIME HISTORY SYNCHRONIZATION
 # ==============================================================================
 # This section sets up automatic history synchronization that occurs after
@@ -83,15 +97,11 @@ touch "$HISTFILE" 2>/dev/null || true
 # for terminal integration features. We detect this and append our sync
 # commands to preserve VS Code functionality while adding history sync.
 
-# Update history after each command and sync across sessions
-# Handle VS Code terminal integration properly
-if [[ "$PROMPT_COMMAND" == "__vsc_prompt_cmd_original" ]]; then
-  # VS Code is active, append our history sync to the existing command
-  PROMPT_COMMAND="__vsc_prompt_cmd_original; history -a; history -c; history -r"
-else
-  # Standard terminal, set up our own PROMPT_COMMAND
-  PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND$'\n'}history -a; history -c; history -r"
-fi
+# PROMPT_COMMAND integration is handled by bc_history_init() (defined below).
+# bashrc_core calls it after PROMPT_COMMAND="set_prompt" is set, ensuring
+# clean append ordering with no clobbering:
+#   atuin active:   set_prompt → __atuin_precmd → history -a
+#   atuin absent:   set_prompt → history -a; history -c; history -r
 
 # ==============================================================================
 # CORE HISTORY MANAGEMENT FUNCTIONS
@@ -117,6 +127,23 @@ bc_format_timestamp() {
       date -d "@$timestamp" "+%m-%d %H:%M" 2>/dev/null || echo "unknown"
       ;;
   esac
+}
+
+# Initialise PROMPT_COMMAND-based history sync.
+# Called by bashrc_core after PROMPT_COMMAND="set_prompt" is established,
+# so each backend can safely append without clobbering the prompt function.
+bc_history_init() {
+  if [[ "${BC_ATUIN_ACTIVE:-0}" == "1" ]]; then
+    # atuin is primary: handles Ctrl-R, up-arrow, and server sync
+    eval "$(atuin init bash)"
+    # Passive append keeps HISTFILE as a human-readable fallback
+    PROMPT_COMMAND="${PROMPT_COMMAND:+${PROMPT_COMMAND}$'\n'}history -a"
+    bc_log_debug "History PROMPT_COMMAND: atuin + passive HISTFILE append"
+  else
+    # Fallback: full cross-session sync via HISTFILE
+    PROMPT_COMMAND="${PROMPT_COMMAND:+${PROMPT_COMMAND}$'\n'}history -a; history -c; history -r"
+    bc_log_debug "History PROMPT_COMMAND: full sync (HISTFILE: $HISTFILE)"
+  fi
 }
 
 # Manual history synchronization
@@ -722,6 +749,31 @@ alias hsearch='bc_history_search' # Advanced search
 alias hbackup='bc_backup_history' # Create backup
 alias himport='bc_import_history' # Import/merge history
 alias hquick='hquick'             # Quick reference card
+
+# ==============================================================================
+# ATUIN INTEGRATION — FUNCTION STUBS
+# ==============================================================================
+# When atuin is active, replace custom history functions with stubs that
+# redirect to the equivalent atuin commands.  HISTFILE is still maintained as
+# a passive text backup (via history -a), so it remains intact if atuin ever
+# becomes unavailable and the fallback needs to take over.
+if [[ "${BC_ATUIN_ACTIVE:-0}" == "1" ]]; then
+  _bc_atuin_redirect() {
+    bc_log_warn "'$1' is disabled — atuin is the active history backend."
+    bc_log_info "Use: atuin search  |  atuin history list  |  atuin sync"
+  }
+  hgrep()             { _bc_atuin_redirect "hg"; }
+  recent_history()    { _bc_atuin_redirect "hr"; }
+  hr_formatted()      { _bc_atuin_redirect "hrf"; }
+  clean_history()     { _bc_atuin_redirect "hc"; }
+  bc_history_stats()  { _bc_atuin_redirect "hstats"; }
+  bc_history_search() { _bc_atuin_redirect "hsearch"; }
+  bc_backup_history() { _bc_atuin_redirect "hbackup"; }
+  bc_import_history() { _bc_atuin_redirect "himport"; }
+  hhelp()             { _bc_atuin_redirect "hhelp"; }
+  hquick()            { _bc_atuin_redirect "hquick"; }
+  sync_history()      { atuin sync; }  # hs → atuin sync
+fi
 
 # ==============================================================================
 # INITIALIZATION AND STATUS

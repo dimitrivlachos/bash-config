@@ -94,9 +94,15 @@ fi
 # ==============================================================================
 # INITIALIZATION
 # ==============================================================================
-# Initialize prompt
+# Initialize prompt and history PROMPT_COMMAND
+# set_prompt runs once to build the initial PS1, then PROMPT_COMMAND is set so
+# it re-runs before every prompt.  bc_history_init() appends its own hooks
+# *after* this assignment, so ordering is guaranteed correct.
 set_prompt
-PROMPT_COMMAND=set_prompt
+PROMPT_COMMAND="set_prompt"
+if declare -f bc_history_init >/dev/null 2>&1; then
+  bc_history_init
+fi
 
 # Interactive shell features
 if [[ $- == *i* ]]; then
