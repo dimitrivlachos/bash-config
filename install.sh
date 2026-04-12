@@ -100,7 +100,8 @@ _bc_run_setup_steps() {
   echo "  [2] Set up SSH configuration  (link config + SK key handles)"
   echo "  [3] Validate installation     (bc_validate_config)"
   if [[ "$SPECIALISATION" == "frostpaw" ]]; then
-  echo "  [4] Set up certificates       (install Caddy root CA + verify atuin)"
+  echo "  [4] Set up certificates       (install Caddy root CA)"
+  echo "  [5] Set up atuin              (symlink config + verify connectivity)"
   fi
   echo "  [0] Skip — I will set up manually later"
   echo ""
@@ -141,16 +142,19 @@ _bc_run_setup_steps() {
         ;;
       4)
         echo ""
-        echo "[INFO] Setting up atuin config..."
-        bc_setup_atuin_config || true
-        echo ""
         echo "[INFO] Installing CA certificates..."
         if bc_setup_certs; then
           did_anything=true
-          echo ""
-          echo "[INFO] Verifying atuin connectivity..."
-          bc_verify_atuin || true
         fi
+        ;;
+      5)
+        echo ""
+        echo "[INFO] Setting up atuin config..."
+        bc_setup_atuin_config || true
+        echo ""
+        echo "[INFO] Verifying atuin connectivity..."
+        bc_verify_atuin || true
+        did_anything=true
         ;;
       0)
         break
