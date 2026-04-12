@@ -70,4 +70,88 @@ EOF
 fi
 
 echo "[✅] Install complete."
-echo "     Restart your shell or run: source $TARGET_BASHRC"
+echo ""
+
+# ==============================================================================
+# POST-INSTALL SETUP WIZARD
+# ==============================================================================
+# Source the newly installed config so its functions are available here.
+# Suppress fastfetch and update-check noise during the install session.
+_bc_install_source_config() {
+  export BASH_SPECIALISATION="$SPECIALISATION"
+  export BASH_CONFIG_DIR="$CONFIG_REPO"
+  # Temporarily disable interactive-only features
+  local _old_minus="$-"
+  # shellcheck source=/dev/null
+  source "$TARGET_LINK" 2>/dev/null || true
+}
+
+echo "Would you like to run optional post-install steps now?"
+echo ""
+echo "  [1] Set up Git configuration  (git-setup / bc_setup_git_config)"
+echo "  [2] Set up SSH configuration  (link config + SK key handles)"
+echo "  [3] Validate installation     (bc_validate_config)"
+echo "  [0] Skip — I will set up manually later"
+echo ""
+
+_bc_run_setup_steps() {
+  _bc_install_source_config
+
+  local choice
+  while true; do
+    read -rp "Enter numbers separated by spaces, or 0 to skip: " choice
+    [[ -n "$choice" ]] && break
+  done
+
+  local did_anything=false
+
+  for opt in $choice; do
+    case "$opt" in
+      1)
+        echo ""
+        echo "[INFO] Running Git configuration setup..."
+        if bc_setup_git_config 2>&1; then
+          did_anything=true
+        fi
+        ;;
+      2)
+        echo ""
+        echo "[INFO] Setting up SSH config symlink and SK key handles..."
+        if bc_setup_ssh_config 2>&1; then
+          did_anything=true
+        fi
+        ;;
+      3)
+        echo ""
+        echo "[INFO] Validating installation..."
+        bc_validate_config
+        did_anything=true
+        ;;
+      0)
+        break
+        ;;
+      *)
+        echo "[WARN] Unknown option: $opt (skipping)"
+        ;;
+    esac
+  done
+
+  echo ""
+  if [[ "$did_anything" == "true" ]]; then
+    echo "[INFO] Setup steps completed."
+  fi
+}
+
+if [[ -t 0 ]]; then
+  _bc_run_setup_steps
+else
+  echo "[INFO] Non-interactive mode — skipping post-install menu."
+fi
+
+echo ""
+echo "Next steps (if not done above):"
+echo "  git-setup            — generate ~/.gitconfig from templates"
+echo "  ssh-setup            — link SSH config + connect to bastion"
+echo "  bc_validate_config   — check everything is set up correctly"
+echo ""
+echo "Reload your shell:  source $TARGET_BASHRC"
