@@ -53,6 +53,18 @@ bc_log_debug() {
 # ENVIRONMENT HELPERS
 # ==============================================================================
 
+# Detect the available mamba command (prefers micromamba)
+# Returns: "micromamba", "mamba", or "" if neither is found
+bc_mamba_cmd() {
+  if command -v micromamba &>/dev/null; then
+    echo "micromamba"
+  elif command -v mamba &>/dev/null; then
+    echo "mamba"
+  else
+    echo ""
+  fi
+}
+
 # Activate local mamba/micromamba environment
 # Usage: mae [env_name]  (default: ENV)
 mae() {
@@ -68,14 +80,13 @@ mae() {
     return 1
   fi
 
-  if command -v micromamba &>/dev/null; then
-    micromamba activate "$env_path"
-  elif command -v mamba &>/dev/null; then
-    mamba activate "$env_path"
-  else
+  local mamba_cmd
+  mamba_cmd=$(bc_mamba_cmd)
+  if [[ -z "$mamba_cmd" ]]; then
     bc_log_error "Neither micromamba nor mamba found in PATH."
     return 1
   fi
+  $mamba_cmd activate "$env_path"
 }
 
 # ==============================================================================

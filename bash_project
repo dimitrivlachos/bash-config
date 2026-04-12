@@ -38,17 +38,6 @@
 # Leave empty to create an empty environment with no Python pre-installed.
 BC_PROJECT_PYTHON_VERSION="${BC_PROJECT_PYTHON_VERSION:-}"
 
-# Detect available mamba command
-_bc_project_mamba_cmd() {
-    if command -v micromamba &>/dev/null; then
-        echo "micromamba"
-    elif command -v mamba &>/dev/null; then
-        echo "mamba"
-    else
-        echo ""
-    fi
-}
-
 # Check whether a directory is a worktree-based project root
 # (has a .git file pointing to a bare repo, or has a .bare/ directory)
 _bc_project_is_project_root() {
@@ -226,7 +215,7 @@ bc_project_create() {
     # --- 6. Create mamba environment ---------------------------------------
     echo
     local mamba_cmd
-    mamba_cmd=$(_bc_project_mamba_cmd)
+    mamba_cmd=$(bc_mamba_cmd)
 
     # Detect environment file in the main worktree
     local env_file=""
