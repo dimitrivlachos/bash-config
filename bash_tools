@@ -185,6 +185,16 @@ bc_validate_config() {
   else
     bc_log_warn "Git config issues detected (run 'git-setup' to fix)"
   fi
+
+  # Check CA certificates (gracefully skips when no certs dir exists)
+  if command -v bc_check_certs >/dev/null 2>&1; then
+    if bc_check_certs silent; then
+      [[ -d "${BASH_CONFIG_DIR:-}/secrets/certs" ]] && bc_log_success "CA certs installed"
+    else
+      bc_log_warn "CA cert(s) missing or outdated (run 'bc_setup_certs')"
+      ((issues++))
+    fi
+  fi
   
   # Check SSH key if set
   if [[ -n "${DIAMOND_GITHUB_KEY:-}" ]]; then

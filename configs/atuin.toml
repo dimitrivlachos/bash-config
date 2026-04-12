@@ -1,0 +1,14 @@
+## Atuin configuration
+## Managed by bash-config — symlinked from ~/.config/atuin/config.toml
+## https://atuin.sh/docs/config
+
+# Self-hosted sync server
+sync_address = "https://atuin.lan"
+
+# Don't override up-arrow — keep standard bash navigation
+# Ctrl+R is still bound to atuin search
+up_arrow_history = false
+
+# Sync after each session, every 5 minutes
+auto_sync = true
+sync_frequency = "5m"
