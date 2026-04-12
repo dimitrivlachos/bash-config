@@ -135,7 +135,7 @@ bc_format_timestamp() {
 bc_history_init() {
   if [[ "${BC_ATUIN_ACTIVE:-0}" == "1" ]]; then
     # atuin is primary: handles Ctrl-R, up-arrow, and server sync
-    eval "$(atuin init bash)"
+    eval "$(atuin init bash --disable-up-arrow)"
     # Passive append keeps HISTFILE as a human-readable fallback
     PROMPT_COMMAND="${PROMPT_COMMAND:+${PROMPT_COMMAND}$'\n'}history -a"
     bc_log_debug "History PROMPT_COMMAND: atuin + passive HISTFILE append"
