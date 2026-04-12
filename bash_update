@@ -15,18 +15,6 @@
 # Usage: update, cleanup, full-update
 # ==============================================================================
 
-# ==============================================================================
-# COLOUR DEFINITIONS
-# ==============================================================================
-UPDATE_COLOR_RED='\033[0;31m'
-UPDATE_COLOR_GREEN='\033[0;32m'
-UPDATE_COLOR_YELLOW='\033[1;33m'
-UPDATE_COLOR_BLUE='\033[0;34m'
-UPDATE_COLOR_MAGENTA='\033[0;35m'
-UPDATE_COLOR_CYAN='\033[0;36m'
-UPDATE_COLOR_WHITE='\033[0;37m'
-UPDATE_COLOR_BOLD='\033[1m'
-UPDATE_COLOR_RESET='\033[0m'
 
 # ==============================================================================
 # LOGGING FUNCTIONS
@@ -46,9 +34,9 @@ _update_header() {
     local line
     line=$(printf '═%.0s' $(seq 1 "$width"))
     
-    echo -e "\n${UPDATE_COLOR_BOLD}${UPDATE_COLOR_CYAN}${line}${UPDATE_COLOR_RESET}"
-    echo -e "${UPDATE_COLOR_BOLD}${UPDATE_COLOR_CYAN}  $1${UPDATE_COLOR_RESET}"
-    echo -e "${UPDATE_COLOR_BOLD}${UPDATE_COLOR_CYAN}${line}${UPDATE_COLOR_RESET}"
+    echo -e "\n${BC_COLOR_BOLD}${BC_COLOR_CYAN}${line}${BC_COLOR_RESET}"
+    echo -e "${BC_COLOR_BOLD}${BC_COLOR_CYAN}  $1${BC_COLOR_RESET}"
+    echo -e "${BC_COLOR_BOLD}${BC_COLOR_CYAN}${line}${BC_COLOR_RESET}"
 }
 
 _update_section() {
@@ -57,34 +45,34 @@ _update_section() {
     local line
     line=$(printf '─%.0s' $(seq 1 "$width"))
     
-    echo -e "\n${UPDATE_COLOR_BOLD}${UPDATE_COLOR_BLUE}▶ $1${UPDATE_COLOR_RESET}"
-    echo -e "${UPDATE_COLOR_BLUE}${line}${UPDATE_COLOR_RESET}"
+    echo -e "\n${BC_COLOR_BOLD}${BC_COLOR_BLUE}▶ $1${BC_COLOR_RESET}"
+    echo -e "${BC_COLOR_BLUE}${line}${BC_COLOR_RESET}"
 }
 
 _update_info() {
-    echo -e "${UPDATE_COLOR_WHITE}  ℹ $1${UPDATE_COLOR_RESET}"
+    echo -e "${BC_COLOR_GRAY}  ℹ $1${BC_COLOR_RESET}"
 }
 
 _update_success() {
-    echo -e "${UPDATE_COLOR_GREEN}  ✓ $1${UPDATE_COLOR_RESET}"
+    echo -e "${BC_COLOR_GREEN}  ✓ $1${BC_COLOR_RESET}"
 }
 
 _update_warn() {
-    echo -e "${UPDATE_COLOR_YELLOW}  ⚠ $1${UPDATE_COLOR_RESET}"
+    echo -e "${BC_COLOR_YELLOW}  ⚠ $1${BC_COLOR_RESET}"
 }
 
 _update_error() {
-    echo -e "${UPDATE_COLOR_RED}  ✗ $1${UPDATE_COLOR_RESET}"
+    echo -e "${BC_COLOR_RED}  ✗ $1${BC_COLOR_RESET}"
 }
 
 _update_skip() {
-    echo -e "${UPDATE_COLOR_MAGENTA}  ⊘ $1${UPDATE_COLOR_RESET}"
+    echo -e "${BC_COLOR_MAGENTA}  ⊘ $1${BC_COLOR_RESET}"
 }
 
 _update_command() {
-    echo -e "${UPDATE_COLOR_CYAN}  ▶ Command: ${UPDATE_COLOR_BOLD}$1${UPDATE_COLOR_RESET}"
+    echo -e "${BC_COLOR_CYAN}  ▶ Command: ${BC_COLOR_BOLD}$1${BC_COLOR_RESET}"
     if [[ -n "$2" ]]; then
-        echo -e "${UPDATE_COLOR_WHITE}    $2${UPDATE_COLOR_RESET}"
+        echo -e "${BC_COLOR_GRAY}    $2${BC_COLOR_RESET}"
     fi
 }
 
@@ -217,7 +205,7 @@ _cleanup_arch() {
     
     _update_info "Found orphan packages:"
     echo "$orphans" | while read -r pkg; do
-        echo -e "    ${UPDATE_COLOR_YELLOW}• $pkg${UPDATE_COLOR_RESET}"
+        echo -e "    ${BC_COLOR_YELLOW}• $pkg${BC_COLOR_RESET}"
     done
     
     _update_command "sudo pacman -Rns <packages>" "-R: remove packages | -n: remove config files | -s: remove dependencies"
@@ -402,7 +390,7 @@ update() {
     local os_type
     os_type=$(_detect_os)
     
-    _update_header "🔄 System Update - ${UPDATE_COLOR_BOLD}$(_get_os_pretty_name)${UPDATE_COLOR_RESET}"
+    _update_header "🔄 System Update - ${BC_COLOR_BOLD}$(_get_os_pretty_name)${BC_COLOR_RESET}"
     
     case "$os_type" in
         arch)
@@ -414,10 +402,10 @@ update() {
             local flatpak_result=$?
             
             if [[ $pacman_result -eq 0 && $aur_result -eq 0 && $flatpak_result -eq 0 ]]; then
-                echo -e "\n${UPDATE_COLOR_GREEN}${UPDATE_COLOR_BOLD}✓ All updates completed successfully${UPDATE_COLOR_RESET}\n"
+                echo -e "\n${BC_COLOR_GREEN}${BC_COLOR_BOLD}✓ All updates completed successfully${BC_COLOR_RESET}\n"
                 return 0
             else
-                echo -e "\n${UPDATE_COLOR_YELLOW}${UPDATE_COLOR_BOLD}⚠ Updates completed with some issues${UPDATE_COLOR_RESET}\n"
+                echo -e "\n${BC_COLOR_YELLOW}${BC_COLOR_BOLD}⚠ Updates completed with some issues${BC_COLOR_RESET}\n"
                 return 1
             fi
             ;;
@@ -428,10 +416,10 @@ update() {
             local flatpak_result=$?
             
             if [[ $apt_result -eq 0 && $flatpak_result -eq 0 ]]; then
-                echo -e "\n${UPDATE_COLOR_GREEN}${UPDATE_COLOR_BOLD}✓ All updates completed successfully${UPDATE_COLOR_RESET}\n"
+                echo -e "\n${BC_COLOR_GREEN}${BC_COLOR_BOLD}✓ All updates completed successfully${BC_COLOR_RESET}\n"
                 return 0
             else
-                echo -e "\n${UPDATE_COLOR_YELLOW}${UPDATE_COLOR_BOLD}⚠ Updates completed with some issues${UPDATE_COLOR_RESET}\n"
+                echo -e "\n${BC_COLOR_YELLOW}${BC_COLOR_BOLD}⚠ Updates completed with some issues${BC_COLOR_RESET}\n"
                 return 1
             fi
             ;;
@@ -442,10 +430,10 @@ update() {
             local flatpak_result=$?
             
             if [[ $apt_result -eq 0 && $flatpak_result -eq 0 ]]; then
-                echo -e "\n${UPDATE_COLOR_GREEN}${UPDATE_COLOR_BOLD}✓ All updates completed successfully${UPDATE_COLOR_RESET}\n"
+                echo -e "\n${BC_COLOR_GREEN}${BC_COLOR_BOLD}✓ All updates completed successfully${BC_COLOR_RESET}\n"
                 return 0
             else
-                echo -e "\n${UPDATE_COLOR_YELLOW}${UPDATE_COLOR_BOLD}⚠ Updates completed with some issues${UPDATE_COLOR_RESET}\n"
+                echo -e "\n${BC_COLOR_YELLOW}${BC_COLOR_BOLD}⚠ Updates completed with some issues${BC_COLOR_RESET}\n"
                 return 1
             fi
             ;;
@@ -467,7 +455,7 @@ cleanup() {
     local os_type
     os_type=$(_detect_os)
     
-    _update_header "🧹 System Cleanup - ${UPDATE_COLOR_BOLD}$(_get_os_pretty_name)${UPDATE_COLOR_RESET}"
+    _update_header "🧹 System Cleanup - ${BC_COLOR_BOLD}$(_get_os_pretty_name)${BC_COLOR_RESET}"
     
     case "$os_type" in
         arch)
@@ -477,10 +465,10 @@ cleanup() {
             local flatpak_result=$?
             
             if [[ $arch_result -eq 0 && $flatpak_result -eq 0 ]]; then
-                echo -e "\n${UPDATE_COLOR_GREEN}${UPDATE_COLOR_BOLD}✓ Cleanup completed successfully${UPDATE_COLOR_RESET}\n"
+                echo -e "\n${BC_COLOR_GREEN}${BC_COLOR_BOLD}✓ Cleanup completed successfully${BC_COLOR_RESET}\n"
                 return 0
             else
-                echo -e "\n${UPDATE_COLOR_YELLOW}${UPDATE_COLOR_BOLD}⚠ Cleanup completed with some issues${UPDATE_COLOR_RESET}\n"
+                echo -e "\n${BC_COLOR_YELLOW}${BC_COLOR_BOLD}⚠ Cleanup completed with some issues${BC_COLOR_RESET}\n"
                 return 1
             fi
             ;;
@@ -491,10 +479,10 @@ cleanup() {
             local flatpak_result=$?
             
             if [[ $debian_result -eq 0 && $flatpak_result -eq 0 ]]; then
-                echo -e "\n${UPDATE_COLOR_GREEN}${UPDATE_COLOR_BOLD}✓ Cleanup completed successfully${UPDATE_COLOR_RESET}\n"
+                echo -e "\n${BC_COLOR_GREEN}${BC_COLOR_BOLD}✓ Cleanup completed successfully${BC_COLOR_RESET}\n"
                 return 0
             else
-                echo -e "\n${UPDATE_COLOR_YELLOW}${UPDATE_COLOR_BOLD}⚠ Cleanup completed with some issues${UPDATE_COLOR_RESET}\n"
+                echo -e "\n${BC_COLOR_YELLOW}${BC_COLOR_BOLD}⚠ Cleanup completed with some issues${BC_COLOR_RESET}\n"
                 return 1
             fi
             ;;
@@ -514,7 +502,7 @@ full-update() {
     local os_type
     os_type=$(_detect_os)
     
-    _update_header "🚀 Full System Update - ${UPDATE_COLOR_BOLD}$(_get_os_pretty_name)${UPDATE_COLOR_RESET}"
+    _update_header "🚀 Full System Update - ${BC_COLOR_BOLD}$(_get_os_pretty_name)${BC_COLOR_RESET}"
     _update_info "This will update all packages and perform cleanup"
     
     # Run update
@@ -546,10 +534,10 @@ full-update() {
     fi
     
     if [[ $update_result -eq 0 && $cleanup_result -eq 0 ]]; then
-        echo -e "\n${UPDATE_COLOR_GREEN}${UPDATE_COLOR_BOLD}✓ Full update completed successfully${UPDATE_COLOR_RESET}\n"
+        echo -e "\n${BC_COLOR_GREEN}${BC_COLOR_BOLD}✓ Full update completed successfully${BC_COLOR_RESET}\n"
         return 0
     else
-        echo -e "\n${UPDATE_COLOR_YELLOW}${UPDATE_COLOR_BOLD}⚠ Full update completed with some issues${UPDATE_COLOR_RESET}\n"
+        echo -e "\n${BC_COLOR_YELLOW}${BC_COLOR_BOLD}⚠ Full update completed with some issues${BC_COLOR_RESET}\n"
         return 1
     fi
 }
