@@ -75,32 +75,37 @@ echo ""
 # ==============================================================================
 # POST-INSTALL SETUP WIZARD
 # ==============================================================================
-# Source the newly installed config so its functions are available here.
-# Suppress fastfetch and update-check noise during the install session.
+# Source only the specific modules needed for the wizard rather than the full
+# bashrc_core — avoids side effects from history traps, PROMPT_COMMAND
+# patching, fastfetch, and update checks running inside a script context.
 _bc_install_source_config() {
   export BASH_SPECIALISATION="$SPECIALISATION"
   export BASH_CONFIG_DIR="$CONFIG_REPO"
-  # Temporarily disable interactive-only features
-  local _old_minus="$-"
   # shellcheck source=/dev/null
-  source "$TARGET_LINK" 2>/dev/null || true
+  source "$CONFIG_REPO/bash_tools" 2>/dev/null || true   # bc_log_*, bc_setup_git_config, bc_validate_config
+  # shellcheck source=/dev/null
+  source "$CONFIG_REPO/bash_ssh"   2>/dev/null || true   # bc_setup_ssh_config, bc_setup_sk_ssh_handles
 }
-
-echo "Would you like to run optional post-install steps now?"
-echo ""
-echo "  [1] Set up Git configuration  (git-setup / bc_setup_git_config)"
-echo "  [2] Set up SSH configuration  (link config + SK key handles)"
-echo "  [3] Validate installation     (bc_validate_config)"
-echo "  [0] Skip — I will set up manually later"
-echo ""
 
 _bc_run_setup_steps() {
   _bc_install_source_config
 
-  local choice
-  while true; do
-    read -rp "Enter numbers separated by spaces, or 0 to skip: " choice
-    [[ -n "$choice" ]] && break
+  echo "Would you like to run optional post-install steps now?"
+  echo ""
+  echo "  [1] Set up Git configuration  (generate ~/.gitconfig)"
+  echo "  [2] Set up SSH configuration  (link config + SK key handles)"
+  echo "  [3] Validate installation     (bc_validate_config)"
+  echo "  [0] Skip — I will set up manually later"
+  echo ""
+
+  local choice=""
+  # Read explicitly from /dev/tty so stdin state cannot interfere
+  while [[ -z "$choice" ]]; do
+    read -rp "Enter numbers separated by spaces, or 0 to skip: " choice </dev/tty || {
+      echo ""
+      echo "[INFO] Could not read input — skipping setup steps."
+      return 0
+    }
   done
 
   local did_anything=false
@@ -110,14 +115,14 @@ _bc_run_setup_steps() {
       1)
         echo ""
         echo "[INFO] Running Git configuration setup..."
-        if bc_setup_git_config 2>&1; then
+        if bc_setup_git_config; then
           did_anything=true
         fi
         ;;
       2)
         echo ""
         echo "[INFO] Setting up SSH config symlink and SK key handles..."
-        if bc_setup_ssh_config 2>&1; then
+        if bc_setup_ssh_config; then
           did_anything=true
         fi
         ;;
@@ -142,7 +147,7 @@ _bc_run_setup_steps() {
   fi
 }
 
-if [[ -t 0 ]]; then
+if [[ -t 1 ]]; then
   _bc_run_setup_steps
 else
   echo "[INFO] Non-interactive mode — skipping post-install menu."
