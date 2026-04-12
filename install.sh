@@ -84,6 +84,8 @@ _bc_install_source_config() {
   # shellcheck source=/dev/null
   source "$CONFIG_REPO/bash_tools" 2>/dev/null || true   # bc_log_*, bc_setup_git_config, bc_validate_config
   # shellcheck source=/dev/null
+  source "$CONFIG_REPO/bash_certs" 2>/dev/null || true   # bc_setup_certs, bc_check_certs, bc_verify_atuin
+  # shellcheck source=/dev/null
   source "$CONFIG_REPO/bash_ssh"   2>/dev/null || true   # bc_setup_ssh_config, bc_setup_sk_ssh_handles
 }
 
@@ -95,6 +97,9 @@ _bc_run_setup_steps() {
   echo "  [1] Set up Git configuration  (generate ~/.gitconfig)"
   echo "  [2] Set up SSH configuration  (link config + SK key handles)"
   echo "  [3] Validate installation     (bc_validate_config)"
+  if [[ "$SPECIALISATION" == "frostpaw" ]]; then
+  echo "  [4] Set up certificates       (install Caddy root CA + verify atuin)"
+  fi
   echo "  [0] Skip — I will set up manually later"
   echo ""
 
@@ -131,6 +136,16 @@ _bc_run_setup_steps() {
         echo "[INFO] Validating installation..."
         bc_validate_config
         did_anything=true
+        ;;
+      4)
+        echo ""
+        echo "[INFO] Installing CA certificates..."
+        if bc_setup_certs; then
+          did_anything=true
+          echo ""
+          echo "[INFO] Verifying atuin connectivity..."
+          bc_verify_atuin || true
+        fi
         ;;
       0)
         break

@@ -1,0 +1,192 @@
+#!/bin/bash
+# ==============================================================================
+# CERTIFICATE MANAGEMENT
+# ==============================================================================
+# Manages installation and verification of custom CA certificates.
+# Primarily for frostpaw systems where the homelab Caddy root CA needs to be
+# trusted for services such as atuin sync.
+#
+# Functions:
+#   bc_setup_certs   — Install all certs from secrets/certs/ into system trust
+#   bc_check_certs   — Validate certs are present in the trust store
+#   bc_verify_atuin  — Test connectivity to atuin server (proves cert is trusted)
+#
+# Supported OS families:
+#   Arch Linux    /etc/ca-certificates/trust-source/anchors/  + update-ca-trust
+#   Debian/Ubuntu /usr/local/share/ca-certificates/           + update-ca-certificates
+#   RHEL/Fedora   /etc/pki/ca-trust/source/anchors/           + update-ca-trust
+# ==============================================================================
+
+# Internal helper: resolve the OS-specific CA trust anchors directory and
+# update command into _BC_CA_ANCHORS_DIR and _BC_CA_UPDATE_CMD.
+_bc_detect_ca_store() {
+  if [[ -f /etc/arch-release ]]; then
+    _BC_CA_ANCHORS_DIR="/etc/ca-certificates/trust-source/anchors"
+    _BC_CA_UPDATE_CMD="update-ca-trust"
+  elif [[ -f /etc/debian_version ]]; then
+    _BC_CA_ANCHORS_DIR="/usr/local/share/ca-certificates"
+    _BC_CA_UPDATE_CMD="update-ca-certificates"
+  elif [[ -f /etc/redhat-release ]] || [[ -f /etc/fedora-release ]]; then
+    _BC_CA_ANCHORS_DIR="/etc/pki/ca-trust/source/anchors"
+    _BC_CA_UPDATE_CMD="update-ca-trust"
+  else
+    bc_log_error "Unsupported OS — cannot determine CA trust store location"
+    return 1
+  fi
+}
+
+# ==============================================================================
+# CERTIFICATE INSTALLATION
+# ==============================================================================
+
+# Install all *.crt files from secrets/certs/ into the system CA trust store.
+# Idempotent: skips certs that are already installed and unchanged.
+# Requires sudo.  Frostpaw only.
+bc_setup_certs() {
+  if [[ "${BASH_SPECIALISATION:-}" != "frostpaw" ]]; then
+    bc_log_warn "bc_setup_certs is only supported on frostpaw systems"
+    return 1
+  fi
+
+  local certs_dir="$BASH_CONFIG_DIR/secrets/certs"
+
+  if [[ ! -d "$certs_dir" ]]; then
+    bc_log_error "Certs directory not found: $certs_dir"
+    bc_log_info "Ensure the secrets submodule is initialised: git submodule update --init"
+    return 1
+  fi
+
+  local -a certs
+  mapfile -d '' certs < <(find "$certs_dir" -maxdepth 1 -name "*.crt" -print0 2>/dev/null)
+
+  if [[ ${#certs[@]} -eq 0 ]]; then
+    bc_log_warn "No .crt files found in $certs_dir"
+    return 1
+  fi
+
+  _bc_detect_ca_store || return 1
+
+  local installed=0 skipped=0
+
+  for cert in "${certs[@]}"; do
+    local cert_name dest
+    cert_name="$(basename "$cert")"
+    dest="$_BC_CA_ANCHORS_DIR/$cert_name"
+
+    if [[ -f "$dest" ]] && cmp -s "$cert" "$dest"; then
+      bc_log_info "Already current: $cert_name"
+      ((skipped++))
+      continue
+    fi
+
+    bc_log_info "Installing: $cert_name → $_BC_CA_ANCHORS_DIR"
+    if ! sudo cp "$cert" "$dest"; then
+      bc_log_error "Failed to copy $cert_name (sudo required)"
+      return 1
+    fi
+    ((installed++))
+  done
+
+  if [[ $installed -gt 0 ]]; then
+    bc_log_info "Updating CA trust store..."
+    if sudo "$_BC_CA_UPDATE_CMD"; then
+      bc_log_success "Installed $installed cert(s) and updated trust store"
+    else
+      bc_log_error "$_BC_CA_UPDATE_CMD failed"
+      return 1
+    fi
+  else
+    bc_log_success "All $skipped cert(s) already current — nothing to do"
+  fi
+}
+
+# ==============================================================================
+# CERTIFICATE VALIDATION
+# ==============================================================================
+
+# Check that all *.crt files from secrets/certs/ are present and current in
+# the system trust store.  Pass "silent" to suppress output (used by
+# bc_validate_config).  Gracefully returns 0 when no certs directory exists,
+# so this check is safe to run on non-frostpaw specialisations.
+bc_check_certs() {
+  local silent="${1:-}"
+  local certs_dir="$BASH_CONFIG_DIR/secrets/certs"
+
+  if [[ ! -d "$certs_dir" ]]; then
+    return 0
+  fi
+
+  local -a certs
+  mapfile -d '' certs < <(find "$certs_dir" -maxdepth 1 -name "*.crt" -print0 2>/dev/null)
+
+  if [[ ${#certs[@]} -eq 0 ]]; then
+    return 0
+  fi
+
+  _bc_detect_ca_store 2>/dev/null || return 1
+
+  local issues=0
+
+  for cert in "${certs[@]}"; do
+    local cert_name dest
+    cert_name="$(basename "$cert")"
+    dest="$_BC_CA_ANCHORS_DIR/$cert_name"
+
+    if [[ -f "$dest" ]] && cmp -s "$cert" "$dest"; then
+      [[ "$silent" != "silent" ]] && bc_log_success "Cert installed: $cert_name"
+    else
+      [[ "$silent" != "silent" ]] && bc_log_error "Cert missing or outdated: $cert_name (run bc_setup_certs)"
+      ((issues++))
+    fi
+  done
+
+  return $(( issues > 0 ? 1 : 0 ))
+}
+
+# ==============================================================================
+# ATUIN CONNECTIVITY VERIFICATION
+# ==============================================================================
+
+# Verify connectivity to the atuin sync server by curling its root endpoint.
+# A successful TLS handshake proves the CA cert is trusted by the system.
+# On success, displays the server response (Terry Pratchett quote).
+# Reads sync_address from ~/.config/atuin/config.toml if present.
+# Frostpaw only.
+bc_verify_atuin() {
+  if [[ "${BASH_SPECIALISATION:-}" != "frostpaw" ]]; then
+    bc_log_warn "bc_verify_atuin is only supported on frostpaw systems"
+    return 1
+  fi
+
+  local sync_url="https://atuin.lan"
+  local atuin_cfg="$HOME/.config/atuin/config.toml"
+  if [[ -f "$atuin_cfg" ]]; then
+    local configured
+    configured=$(grep '^sync_address' "$atuin_cfg" 2>/dev/null \
+                   | sed 's/.*=[ ]*"\(.*\)".*/\1/')
+    [[ -n "$configured" ]] && sync_url="$configured"
+  fi
+
+  bc_log_info "Verifying atuin connectivity: $sync_url"
+
+  local http_code
+  http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$sync_url/" 2>/dev/null)
+
+  case "$http_code" in
+    2??)
+      local response
+      response=$(curl -s --max-time 5 "$sync_url/" 2>/dev/null)
+      bc_log_success "atuin reachable (HTTP $http_code) — CA cert trusted"
+      echo -e "${BC_COLOR_CYAN}${response}${BC_COLOR_RESET}"
+      ;;
+    000)
+      bc_log_error "Cannot reach $sync_url (connection failed)"
+      bc_log_info "Check: server up?  CA cert installed?  (run bc_setup_certs)"
+      return 1
+      ;;
+    *)
+      bc_log_warn "atuin server responded with HTTP $http_code"
+      return 1
+      ;;
+  esac
+}
