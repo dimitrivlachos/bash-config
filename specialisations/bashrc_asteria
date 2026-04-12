@@ -64,7 +64,6 @@ alias connections='sudo ss -tulpn'
 # ------------------------------------------------------------------------------
 # Home Server Utilities
 # ------------------------------------------------------------------------------
-alias htop='htop'
 alias iotop='sudo iotop'
 alias disk-usage='df -h'
 alias free-mem='free -h'
