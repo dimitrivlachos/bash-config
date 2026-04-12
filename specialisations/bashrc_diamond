@@ -124,7 +124,7 @@ setup_fastfetch() {
 # K9s Configuration
 # ------------------------------------------------------------------------------
 setup_k9s() {
-  local k9s_path="/dls/science/users/rto52325/k9s/k9s"
+  local k9s_path="/dls/science/users/$DIAMOND_USERNAME/k9s/k9s"
   if [[ -x "$k9s_path" ]]; then
     export PATH="$(dirname "$k9s_path"):$PATH"
   else
