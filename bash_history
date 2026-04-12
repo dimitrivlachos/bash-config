@@ -6,18 +6,160 @@
 #
 # This module provides unified command history across multiple SSH sessions
 # and machines, with advanced search, sync, and management capabilities.
+# Atuin is used as the primary backend when available, with the custom
+# HISTFILE-based system acting as fallback.
 #
 # Key Features:
-# - Unified history file shared across all Diamond machines
-# - Real-time synchronization between active sessions  
-# - Automatic sync on session exit
-# - Advanced search with context and highlighting
-# - Statistics and duplicate management
+# - Atuin primary backend (cross-machine sync, Ctrl+R search, per-command metadata)
+# - Custom HISTFILE fallback for machines without atuin
+# - HISTFILE maintained as passive text backup in both modes
+# - Advanced search, statistics, and duplicate management (fallback mode)
 # - Import/export functionality for migration
-# - VS Code terminal integration
 #
 # Usage: Run 'hhelp' for detailed command reference
 # ==============================================================================
+
+
+# ==============================================================================
+# ATUIN  (primary backend)
+# ==============================================================================
+
+# Detect atuin; all subsequent logic branches on BC_ATUIN_ACTIVE.
+if command -v atuin >/dev/null 2>&1; then
+  export BC_ATUIN_ACTIVE=1
+  bc_log_debug "History: atuin detected — primary backend"
+else
+  export BC_ATUIN_ACTIVE=0
+  bc_log_debug "History: atuin not found — using custom sync"
+fi
+
+# Wire atuin (or the custom fallback) into PROMPT_COMMAND.
+# Called by bashrc_core *after* PROMPT_COMMAND="set_prompt" so each backend
+# can safely append without clobbering the prompt function.
+#   atuin active:   set_prompt → __atuin_precmd → history -a
+#   atuin absent:   set_prompt → history -a; history -c; history -r
+bc_history_init() {
+  if [[ "${BC_ATUIN_ACTIVE:-0}" == "1" ]]; then
+    eval "$(atuin init bash --disable-up-arrow)"
+    # Passive append keeps HISTFILE as a human-readable fallback
+    PROMPT_COMMAND="${PROMPT_COMMAND:+${PROMPT_COMMAND}$'\n'}history -a"
+    bc_log_debug "History PROMPT_COMMAND: atuin + passive HISTFILE append"
+  else
+    # Fallback: full cross-session sync via HISTFILE
+    PROMPT_COMMAND="${PROMPT_COMMAND:+${PROMPT_COMMAND}$'\n'}history -a; history -c; history -r"
+    bc_log_debug "History PROMPT_COMMAND: full sync (HISTFILE: $HISTFILE)"
+  fi
+}
+
+# Symlink ~/.config/atuin/config.toml → configs/atuin.toml in the repo.
+# Backs up any existing plain file before replacing.  Frostpaw only.
+bc_setup_atuin_config() {
+  if [[ "${BASH_SPECIALISATION:-}" != "frostpaw" ]]; then
+    bc_log_warn "bc_setup_atuin_config is only supported on frostpaw systems"
+    return 1
+  fi
+
+  local src="$BASH_CONFIG_DIR/configs/atuin.toml"
+  local atuin_dir="$HOME/.config/atuin"
+  local dest="$atuin_dir/config.toml"
+  local backup_suffix=".backup.$(date +%Y%m%d_%H%M%S)"
+
+  if [[ ! -f "$src" ]]; then
+    bc_log_error "Atuin config not found in repo: $src"
+    return 1
+  fi
+
+  mkdir -p "$atuin_dir"
+
+  if [[ -L "$dest" ]]; then
+    local current_target
+    current_target=$(readlink "$dest")
+    if [[ "$current_target" == "$src" ]]; then
+      bc_log_info "Atuin config already correctly symlinked"
+      return 0
+    fi
+    bc_log_info "Removing existing symlink (was: $current_target)"
+    rm "$dest"
+  elif [[ -f "$dest" ]]; then
+    mv "$dest" "${dest}${backup_suffix}"
+    bc_log_info "Backed up existing atuin config to: ${dest}${backup_suffix}"
+  fi
+
+  ln -sf "$src" "$dest"
+  bc_log_success "Atuin config symlinked: $dest → $src"
+}
+
+# Verify connectivity to the atuin sync server by curling its root endpoint.
+# A successful TLS handshake proves the CA cert is trusted by the system.
+# On success, displays the server response (Terry Pratchett quote).
+# Reads sync_address from ~/.config/atuin/config.toml if present.
+# Frostpaw only.
+bc_verify_atuin() {
+  if [[ "${BASH_SPECIALISATION:-}" != "frostpaw" ]]; then
+    bc_log_warn "bc_verify_atuin is only supported on frostpaw systems"
+    return 1
+  fi
+
+  local sync_url="https://atuin.lan"
+  local atuin_cfg="$HOME/.config/atuin/config.toml"
+  if [[ -f "$atuin_cfg" ]]; then
+    local configured
+    configured=$(grep '^sync_address' "$atuin_cfg" 2>/dev/null \
+                   | sed 's/.*=[ ]*"\(.*\)".*/\1/')
+    [[ -n "$configured" ]] && sync_url="$configured"
+  fi
+
+  bc_log_info "Verifying atuin connectivity: $sync_url"
+
+  local http_code
+  http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$sync_url/" 2>/dev/null)
+
+  case "$http_code" in
+    2??)
+      local response
+      response=$(curl -s --max-time 5 "$sync_url/" 2>/dev/null)
+      bc_log_success "atuin reachable (HTTP $http_code) — CA cert trusted"
+      echo -e "${BC_COLOR_CYAN}${response}${BC_COLOR_RESET}"
+      ;;
+    000)
+      bc_log_error "Cannot reach $sync_url (connection failed)"
+      bc_log_info "Check: server up?  CA cert installed?  (run bc_setup_certs)"
+      return 1
+      ;;
+    *)
+      bc_log_warn "atuin server responded with HTTP $http_code"
+      return 1
+      ;;
+  esac
+}
+
+# When atuin is active, replace custom history functions with stubs that
+# redirect to the equivalent atuin commands.  HISTFILE is still maintained as
+# a passive text backup (via history -a), so it remains intact if atuin ever
+# becomes unavailable and the fallback needs to take over.
+if [[ "${BC_ATUIN_ACTIVE:-0}" == "1" ]]; then
+  _bc_atuin_redirect() {
+    bc_log_warn "'$1' is disabled — atuin is the active history backend."
+    bc_log_info "Use: atuin search  |  atuin history list  |  atuin sync"
+  }
+  hgrep()             { _bc_atuin_redirect "hg"; }
+  recent_history()    { _bc_atuin_redirect "hr"; }
+  hr_formatted()      { _bc_atuin_redirect "hrf"; }
+  clean_history()     { _bc_atuin_redirect "hc"; }
+  bc_history_stats()  { _bc_atuin_redirect "hstats"; }
+  bc_history_search() { _bc_atuin_redirect "hsearch"; }
+  bc_backup_history() { _bc_atuin_redirect "hbackup"; }
+  bc_import_history() { _bc_atuin_redirect "himport"; }
+  hhelp()             { _bc_atuin_redirect "hhelp"; }
+  hquick()            { _bc_atuin_redirect "hquick"; }
+  sync_history()      { atuin sync; }  # hs → atuin sync
+fi
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# CUSTOM HISTORY  —  fallback when atuin is unavailable
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 
 # ==============================================================================
 # HISTORY CONFIGURATION
@@ -67,43 +209,6 @@ esac
 touch "$HISTFILE" 2>/dev/null || true
 
 # ==============================================================================
-# ATUIN DETECTION
-# ==============================================================================
-# Check for atuin at startup to select the appropriate history backend.
-# PROMPT_COMMAND integration is deferred to bc_history_init(), which bashrc_core
-# calls after setting PROMPT_COMMAND="set_prompt", so appending is safe.
-if command -v atuin >/dev/null 2>&1; then
-  export BC_ATUIN_ACTIVE=1
-  bc_log_debug "History: atuin detected — will use as primary backend"
-else
-  export BC_ATUIN_ACTIVE=0
-  bc_log_debug "History: atuin not found — custom sync will be used"
-fi
-
-# ==============================================================================
-# REAL-TIME HISTORY SYNCHRONIZATION
-# ==============================================================================
-# This section sets up automatic history synchronization that occurs after
-# every command execution. This ensures that command history is immediately
-# available across all active sessions.
-#
-# Technical Details:
-# - history -a: Appends new commands from current session to the history file
-# - history -c: Clears the current session's in-memory history
-# - history -r: Reloads the history file into the current session's memory
-#
-# VS Code Integration:
-# VS Code terminals use a special PROMPT_COMMAND (__vsc_prompt_cmd_original)
-# for terminal integration features. We detect this and append our sync
-# commands to preserve VS Code functionality while adding history sync.
-
-# PROMPT_COMMAND integration is handled by bc_history_init() (defined below).
-# bashrc_core calls it after PROMPT_COMMAND="set_prompt" is set, ensuring
-# clean append ordering with no clobbering:
-#   atuin active:   set_prompt → __atuin_precmd → history -a
-#   atuin absent:   set_prompt → history -a; history -c; history -r
-
-# ==============================================================================
 # CORE HISTORY MANAGEMENT FUNCTIONS
 # ==============================================================================
 
@@ -129,23 +234,6 @@ bc_format_timestamp() {
   esac
 }
 
-# Initialise PROMPT_COMMAND-based history sync.
-# Called by bashrc_core after PROMPT_COMMAND="set_prompt" is established,
-# so each backend can safely append without clobbering the prompt function.
-bc_history_init() {
-  if [[ "${BC_ATUIN_ACTIVE:-0}" == "1" ]]; then
-    # atuin is primary: handles Ctrl-R, up-arrow, and server sync
-    eval "$(atuin init bash --disable-up-arrow)"
-    # Passive append keeps HISTFILE as a human-readable fallback
-    PROMPT_COMMAND="${PROMPT_COMMAND:+${PROMPT_COMMAND}$'\n'}history -a"
-    bc_log_debug "History PROMPT_COMMAND: atuin + passive HISTFILE append"
-  else
-    # Fallback: full cross-session sync via HISTFILE
-    PROMPT_COMMAND="${PROMPT_COMMAND:+${PROMPT_COMMAND}$'\n'}history -a; history -c; history -r"
-    bc_log_debug "History PROMPT_COMMAND: full sync (HISTFILE: $HISTFILE)"
-  fi
-}
-
 # Manual history synchronization
 # Useful when you want to immediately sync history without waiting for the
 # next command prompt, or when troubleshooting sync issues.
@@ -164,6 +252,7 @@ sync_history() {
 
 # Auto-sync on session exit
 bc_history_exit_sync() {
+  [[ $- == *i* ]] || return 0  # Interactive shells only
   if [[ -n "${HISTFILE:-}" && -f "$HISTFILE" ]]; then
     history -a
     bc_log_info "History automatically synced on session exit"
@@ -259,9 +348,9 @@ hgrep() {
           next
         }
         # Skip history-related commands that would show up in search (unless showing all)
-        if (showall != "true" && 
-            ($0 ~ /^(hg|hgrep|hr|hs|hstats|hc|hhelp|hquick|hrf|hsearch|hbackup|himport|history)\s/ || 
-             $0 ~ /history\s*\|\s*grep/ || 
+        if (showall != "true" &&
+            ($0 ~ /^(hg|hgrep|hr|hs|hstats|hc|hhelp|hquick|hrf|hsearch|hbackup|himport|history)\s/ ||
+             $0 ~ /history\s*\|\s*grep/ ||
              $0 ~ /^bc_history_/ ||
              $0 == "history")) {
           next
@@ -287,7 +376,7 @@ hgrep() {
           for (i = start; i <= m; i++) print matches[i]
           if (m > max) {
             printf "\033[33mShowing last %d of %d matches\033[0m\n", max, m
-            printf "\033[37mUse '--show-all' to see all matches\033[0m\n"
+            printf "\033[37mUse '\''--show-all'\'' to see all matches\033[0m\n"
           } else {
             printf "\033[36mTotal: %d matches\033[0m\n", m
           }
@@ -458,7 +547,7 @@ clean_history() {
     
     # More sophisticated deduplication that preserves timestamp-command pairs
     awk '
-    /^#[0-9]+$/ { 
+    /^#[0-9]+$/ {
       # This is a timestamp - store it
       timestamp = $0
       next
@@ -646,7 +735,7 @@ preserved across sessions.
   hhelp          Show this help (you're reading it now!)
   hstats         Display comprehensive history statistics (timestamp-aware)
   hr [N]         Show recent N commands with readable timestamps
-  hrf [N] [fmt]  Show recent commands with format: compact/full/timestamps  
+  hrf [N] [fmt]  Show recent commands with format: compact/full/timestamps
   hg <pattern>   Search history for pattern with colored output
   hs             Manually sync history across sessions
 
@@ -655,12 +744,12 @@ preserved across sessions.
   hg <pattern> [count]      Show last N matches
   hg <pattern> --show-all   Show all matches
   hsearch <pattern> [ctx]   Advanced search with context lines
-  
+
   Examples:
-    hg "git commit"         Find last 10 git commit commands
-    hg "git commit" 5       Find last 5 git commit commands
-    hg "git commit" --show-all  Find all git commit commands
-    hsearch "python" 5      Find python commands with 5 lines context
+    hg "git commit"              Find last 10 git commit commands
+    hg "git commit" 5            Find last 5 git commit commands
+    hg "git commit" --show-all   Find all git commit commands
+    hsearch "python" 5           Find python commands with 5 lines context
 
 📊 ANALYSIS & MAINTENANCE
   hstats         Complete statistics: total commands, top commands, etc.
@@ -668,24 +757,18 @@ preserved across sessions.
   bc_info        Show system status including history information
 
 💾 BACKUP & MIGRATION
-  hbackup                    Create timestamped backup
+  hbackup                   Create timestamped backup
   himport <file>            Import/merge history from another machine
-  
+
   Examples:
     hbackup                 Create backup before major changes
     himport ~/.bash_history Import from local bash history
 
-🔧 TECHNICAL DETAILS
-  History File: $HISTFILE
-  Capacity: 50,000 commands in memory, 100,000 in file
-  Features: Timestamps, duplicate removal, real-time sync
-  Sync Method: After every command + on session exit
-
 📝 USAGE EXAMPLES
   # Find that complex command you ran on another GPU node
   hg "sbatch.*gpu"
-  
-  # See what you've been working on recently across all sessions  
+
+  # See what you've been working on recently across all sessions
   hr 10
   
   # Search for conda environment setups with context
@@ -697,6 +780,12 @@ preserved across sessions.
   # Backup before importing history from old machine
   hbackup && himport /path/to/old_history
 
+🔧 TECHNICAL DETAILS
+  History File: $HISTFILE
+  Capacity: 50,000 commands in memory, 100,000 in file
+  Features: Timestamps, duplicate removal, real-time sync
+  Sync Method: After every command + on session exit
+
 🚨 TROUBLESHOOTING
   - History not syncing? Run: hs (manual sync)
   - Commands missing? Check: bc_validate_config
@@ -706,9 +795,9 @@ preserved across sessions.
 💡 PRO TIPS
   - Use 'hr' instead of 'history' to see unified history with nice timestamps
   - Use 'hrf 10 full' for detailed timestamp format
-  - Search is case-insensitive and supports regex patterns  
-  - History survives SSH disconnections and machine restarts
+  - Search is case-insensitive and supports regex patterns
   - Statistics now properly exclude timestamp lines from command counts
+  - History survives SSH disconnections and machine restarts
   - Use 'hsearch' with context for debugging complex workflows
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -737,43 +826,15 @@ EOF
 
 # Short, memorable aliases for all history management functions
 # These provide quick access to the most commonly used features.
-# Short, memorable aliases for all history management functions
-# These provide quick access to the most commonly used features.
 alias hs='sync_history'           # Manual sync
 alias hg='hgrep'                  # Quick search
-alias hr='recent_history'         # Recent commands  
+alias hr='recent_history'         # Recent commands
 alias hrf='hr_formatted'          # Recent commands with formatting options
 alias hc='clean_history'          # Clean duplicates
 alias hstats='bc_history_stats'   # Statistics
 alias hsearch='bc_history_search' # Advanced search
 alias hbackup='bc_backup_history' # Create backup
 alias himport='bc_import_history' # Import/merge history
-alias hquick='hquick'             # Quick reference card
-
-# ==============================================================================
-# ATUIN INTEGRATION — FUNCTION STUBS
-# ==============================================================================
-# When atuin is active, replace custom history functions with stubs that
-# redirect to the equivalent atuin commands.  HISTFILE is still maintained as
-# a passive text backup (via history -a), so it remains intact if atuin ever
-# becomes unavailable and the fallback needs to take over.
-if [[ "${BC_ATUIN_ACTIVE:-0}" == "1" ]]; then
-  _bc_atuin_redirect() {
-    bc_log_warn "'$1' is disabled — atuin is the active history backend."
-    bc_log_info "Use: atuin search  |  atuin history list  |  atuin sync"
-  }
-  hgrep()             { _bc_atuin_redirect "hg"; }
-  recent_history()    { _bc_atuin_redirect "hr"; }
-  hr_formatted()      { _bc_atuin_redirect "hrf"; }
-  clean_history()     { _bc_atuin_redirect "hc"; }
-  bc_history_stats()  { _bc_atuin_redirect "hstats"; }
-  bc_history_search() { _bc_atuin_redirect "hsearch"; }
-  bc_backup_history() { _bc_atuin_redirect "hbackup"; }
-  bc_import_history() { _bc_atuin_redirect "himport"; }
-  hhelp()             { _bc_atuin_redirect "hhelp"; }
-  hquick()            { _bc_atuin_redirect "hquick"; }
-  sync_history()      { atuin sync; }  # hs → atuin sync
-fi
 
 # ==============================================================================
 # INITIALIZATION AND STATUS
@@ -782,11 +843,6 @@ fi
 # Display status message when history management loads
 # This confirms that the unified history system is active and shows
 # the location of the shared history file.
-
-# Display status message when history management loads
-# This confirms that the unified history system is active and shows
-# the location of the shared history file.
-# Initial sync on load
 if [[ -n "${HISTFILE:-}" && -f "$HISTFILE" ]]; then
 #   bc_log_info "Unified history loaded: $HISTFILE"
 #   bc_log_info "Type 'hhelp' for history management commands"

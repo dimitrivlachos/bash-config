@@ -7,9 +7,8 @@
 # trusted for services such as atuin sync.
 #
 # Functions:
-#   bc_setup_certs   — Install all certs from secrets/certs/ into system trust
-#   bc_check_certs   — Validate certs are present in the trust store
-#   bc_verify_atuin  — Test connectivity to atuin server (proves cert is trusted)
+#   bc_setup_certs  — Install all certs from secrets/certs/ into system trust
+#   bc_check_certs  — Validate certs are present in the trust store
 #
 # Supported OS families:
 #   Arch Linux    /etc/ca-certificates/trust-source/anchors/  + update-ca-trust
@@ -141,52 +140,4 @@ bc_check_certs() {
   done
 
   return $(( issues > 0 ? 1 : 0 ))
-}
-
-# ==============================================================================
-# ATUIN CONNECTIVITY VERIFICATION
-# ==============================================================================
-
-# Verify connectivity to the atuin sync server by curling its root endpoint.
-# A successful TLS handshake proves the CA cert is trusted by the system.
-# On success, displays the server response (Terry Pratchett quote).
-# Reads sync_address from ~/.config/atuin/config.toml if present.
-# Frostpaw only.
-bc_verify_atuin() {
-  if [[ "${BASH_SPECIALISATION:-}" != "frostpaw" ]]; then
-    bc_log_warn "bc_verify_atuin is only supported on frostpaw systems"
-    return 1
-  fi
-
-  local sync_url="https://atuin.lan"
-  local atuin_cfg="$HOME/.config/atuin/config.toml"
-  if [[ -f "$atuin_cfg" ]]; then
-    local configured
-    configured=$(grep '^sync_address' "$atuin_cfg" 2>/dev/null \
-                   | sed 's/.*=[ ]*"\(.*\)".*/\1/')
-    [[ -n "$configured" ]] && sync_url="$configured"
-  fi
-
-  bc_log_info "Verifying atuin connectivity: $sync_url"
-
-  local http_code
-  http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$sync_url/" 2>/dev/null)
-
-  case "$http_code" in
-    2??)
-      local response
-      response=$(curl -s --max-time 5 "$sync_url/" 2>/dev/null)
-      bc_log_success "atuin reachable (HTTP $http_code) — CA cert trusted"
-      echo -e "${BC_COLOR_CYAN}${response}${BC_COLOR_RESET}"
-      ;;
-    000)
-      bc_log_error "Cannot reach $sync_url (connection failed)"
-      bc_log_info "Check: server up?  CA cert installed?  (run bc_setup_certs)"
-      return 1
-      ;;
-    *)
-      bc_log_warn "atuin server responded with HTTP $http_code"
-      return 1
-      ;;
-  esac
 }
