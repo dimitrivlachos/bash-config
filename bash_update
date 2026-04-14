@@ -11,6 +11,7 @@
 #   - Raspberry Pi OS (apt + optional fastfetch updates)
 #   - RHEL/CentOS/Fedora (dnf/yum) - detection only, no auto-update
 #   - Flatpak (cross-platform, if installed)
+#   - Atuin (cross-platform, if script-installed to ~/.atuin/bin)
 #
 # Usage: update, cleanup, full-update
 # ==============================================================================
@@ -382,6 +383,38 @@ _cleanup_flatpak() {
 }
 
 # ==============================================================================
+# ATUIN UPDATE FUNCTIONS
+# ==============================================================================
+_update_atuin() {
+    _update_section "🐚 Atuin - Shell History Manager"
+
+    if ! command -v atuin &>/dev/null; then
+        _update_skip "Atuin not installed"
+        return 0
+    fi
+
+    # Only self-update if installed via the official install script (~/.atuin/bin).
+    # Package-manager installs (/usr/bin etc.) are handled by the system updater.
+    local atuin_path
+    atuin_path=$(command -v atuin)
+    if [[ "$atuin_path" != "$HOME/.atuin/bin/atuin" ]]; then
+        _update_skip "Atuin managed by system package manager (${atuin_path})"
+        return 0
+    fi
+
+    _update_info "Updating script-installed atuin..."
+    _update_command "atuin update" "Self-update the atuin binary"
+
+    if atuin update; then
+        _update_success "Atuin update complete"
+        return 0
+    else
+        _update_error "Atuin update failed"
+        return 1
+    fi
+}
+
+# ==============================================================================
 # MAIN UPDATE FUNCTIONS
 # ==============================================================================
 
@@ -400,8 +433,10 @@ update() {
             local aur_result=$?
             _update_flatpak
             local flatpak_result=$?
+            _update_atuin
+            local atuin_result=$?
             
-            if [[ $pacman_result -eq 0 && $aur_result -eq 0 && $flatpak_result -eq 0 ]]; then
+            if [[ $pacman_result -eq 0 && $aur_result -eq 0 && $flatpak_result -eq 0 && $atuin_result -eq 0 ]]; then
                 echo -e "\n${BC_COLOR_GREEN}${BC_COLOR_BOLD}✓ All updates completed successfully${BC_COLOR_RESET}\n"
                 return 0
             else
@@ -414,8 +449,10 @@ update() {
             local apt_result=$?
             _update_flatpak
             local flatpak_result=$?
+            _update_atuin
+            local atuin_result=$?
             
-            if [[ $apt_result -eq 0 && $flatpak_result -eq 0 ]]; then
+            if [[ $apt_result -eq 0 && $flatpak_result -eq 0 && $atuin_result -eq 0 ]]; then
                 echo -e "\n${BC_COLOR_GREEN}${BC_COLOR_BOLD}✓ All updates completed successfully${BC_COLOR_RESET}\n"
                 return 0
             else
@@ -428,8 +465,10 @@ update() {
             local apt_result=$?
             _update_flatpak
             local flatpak_result=$?
+            _update_atuin
+            local atuin_result=$?
             
-            if [[ $apt_result -eq 0 && $flatpak_result -eq 0 ]]; then
+            if [[ $apt_result -eq 0 && $flatpak_result -eq 0 && $atuin_result -eq 0 ]]; then
                 echo -e "\n${BC_COLOR_GREEN}${BC_COLOR_BOLD}✓ All updates completed successfully${BC_COLOR_RESET}\n"
                 return 0
             else
@@ -574,6 +613,7 @@ ${line}
   Raspberry Pi    apt + fastfetch auto-update
   RHEL/CentOS     Detection only (managed systems)
   Flatpak         Cross-platform (if installed)
+  Atuin           Cross-platform, script-installed only (~/.atuin/bin)
 
 🎨 OUTPUT COLOURS
   Blue            Section headers
