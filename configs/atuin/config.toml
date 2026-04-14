@@ -1,5 +1,5 @@
 ## Atuin configuration
-## Managed by bash-config — symlinked from ~/.config/atuin/config.toml
+## Managed by bash-config — loaded via ATUIN_CONFIG_DIR (set in bash_exports)
 ## https://atuin.sh/docs/config
 
 # Self-hosted sync server
