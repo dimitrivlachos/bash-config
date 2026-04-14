@@ -51,48 +51,43 @@ bc_history_init() {
   fi
 }
 
-# Symlink ~/.config/atuin/config.toml → configs/atuin.toml in the repo.
-# Backs up any existing plain file before replacing.  Frostpaw only.
+# Verify that ATUIN_CONFIG_DIR points to the repo-managed config and that
+# the config file exists.  Removes any stale symlink left from the old
+# symlink-based setup.  Frostpaw only.
 bc_setup_atuin_config() {
   if [[ "${BASH_SPECIALISATION:-}" != "frostpaw" ]]; then
     bc_log_warn "bc_setup_atuin_config is only supported on frostpaw systems"
     return 1
   fi
 
-  local src="$BASH_CONFIG_DIR/configs/atuin.toml"
-  local atuin_dir="$HOME/.config/atuin"
-  local dest="$atuin_dir/config.toml"
-  local backup_suffix=".backup.$(date +%Y%m%d_%H%M%S)"
+  local config_dir="$BASH_CONFIG_DIR/configs/atuin"
+  local config_file="$config_dir/config.toml"
 
-  if [[ ! -f "$src" ]]; then
-    bc_log_error "Atuin config not found in repo: $src"
+  if [[ ! -f "$config_file" ]]; then
+    bc_log_error "Atuin config not found in repo: $config_file"
     return 1
   fi
 
-  mkdir -p "$atuin_dir"
-
-  if [[ -L "$dest" ]]; then
-    local current_target
-    current_target=$(readlink "$dest")
-    if [[ "$current_target" == "$src" ]]; then
-      bc_log_info "Atuin config already correctly symlinked"
-      return 0
-    fi
-    bc_log_info "Removing existing symlink (was: $current_target)"
-    rm "$dest"
-  elif [[ -f "$dest" ]]; then
-    mv "$dest" "${dest}${backup_suffix}"
-    bc_log_info "Backed up existing atuin config to: ${dest}${backup_suffix}"
+  # Clean up legacy symlink if present
+  local legacy_dest="$HOME/.config/atuin/config.toml"
+  if [[ -L "$legacy_dest" ]]; then
+    bc_log_info "Removing legacy symlink: $legacy_dest"
+    rm "$legacy_dest"
   fi
 
-  ln -sf "$src" "$dest"
-  bc_log_success "Atuin config symlinked: $dest → $src"
+  if [[ "${ATUIN_CONFIG_DIR:-}" == "$config_dir" ]]; then
+    bc_log_success "ATUIN_CONFIG_DIR is set correctly: $config_dir"
+  else
+    bc_log_warn "ATUIN_CONFIG_DIR is not set (expected in bash_exports)"
+    bc_log_info "Setting it now for this session"
+    export ATUIN_CONFIG_DIR="$config_dir"
+  fi
 }
 
 # Verify connectivity to the atuin sync server by curling its root endpoint.
 # A successful TLS handshake proves the CA cert is trusted by the system.
 # On success, displays the server response (Terry Pratchett quote).
-# Reads sync_address from ~/.config/atuin/config.toml if present.
+# Reads sync_address from $ATUIN_CONFIG_DIR/config.toml if present.
 # Frostpaw only.
 bc_verify_atuin() {
   if [[ "${BASH_SPECIALISATION:-}" != "frostpaw" ]]; then
@@ -101,7 +96,7 @@ bc_verify_atuin() {
   fi
 
   local sync_url="https://atuin.lan"
-  local atuin_cfg="$HOME/.config/atuin/config.toml"
+  local atuin_cfg="${ATUIN_CONFIG_DIR:-$HOME/.config/atuin}/config.toml"
   if [[ -f "$atuin_cfg" ]]; then
     local configured
     configured=$(grep '^sync_address' "$atuin_cfg" 2>/dev/null \

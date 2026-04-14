@@ -101,7 +101,7 @@ _bc_run_setup_steps() {
   echo "  [3] Validate installation     (bc_validate_config)"
   if [[ "$SPECIALISATION" == "frostpaw" ]]; then
   echo "  [4] Set up certificates       (install Caddy root CA)"
-  echo "  [5] Set up atuin              (symlink config + verify connectivity)"
+  echo "  [5] Set up atuin              (verify config + connectivity)"
   fi
   echo "  [0] Skip — I will set up manually later"
   echo ""
