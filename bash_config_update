@@ -109,7 +109,8 @@ bc_update_config() {
       bc_log_info "Updating bash-config..."
       if git merge --ff-only origin/main; then
         bc_log_info "Updating submodules..."
-        if git submodule update --init --recursive; then
+        git submodule sync --recursive --quiet
+        if git submodule update --init --recursive --remote; then
           bc_log_success "Successfully updated to latest version"
           bc_log_info "Restart your shell or run: source ~/.bashrc"
         else
