@@ -12,3 +12,17 @@ up_arrow_history = false
 # Sync after each session, every 5 minutes
 auto_sync = true
 sync_frequency = "5m"
+
+# Use the daemon's in-memory index for faster fuzzy search (requires daemon below)
+search_mode = "daemon-fuzzy"
+
+# AI-powered natural language search — requires Atuin's cloud AI backend.
+# Not supported by self-hosted servers, so this has no effect here.
+# [ai]
+# enabled = true
+
+[daemon]
+# Background process that maintains an in-memory search index and handles sync.
+# autostart spawns it automatically on shell init — no systemd unit needed.
+enabled = true
+autostart = true
