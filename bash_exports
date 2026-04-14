@@ -28,3 +28,11 @@ export CMAKE_GENERATOR="${CMAKE_GENERATOR:-Ninja}"
 # ------------------------------------------------------------------------------
 # Guard against duplicate entries when opening multiple terminals (each sources this file)
 [[ ":$PATH:" != *":$HOME/.local/bin:"* ]] && export PATH="$HOME/.local/bin:$PATH"
+
+# ------------------------------------------------------------------------------
+# Atuin (shell history sync)
+# ------------------------------------------------------------------------------
+# Must be sourced here (before bash_history) so that `command -v atuin` in
+# bash_history resolves correctly and BC_ATUIN_ACTIVE is set to 1.
+# The env script has its own PATH dedup guard built in.
+[[ -f "$HOME/.atuin/bin/env" ]] && . "$HOME/.atuin/bin/env"
