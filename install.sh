@@ -73,6 +73,44 @@ echo "[✅] Install complete."
 echo ""
 
 # ==============================================================================
+# BASH-PREEXEC INSTALLATION
+# ==============================================================================
+# bash-preexec wires up precmd/preexec hook arrays that atuin relies on to
+# record command history (timing, exit codes, etc.).
+_bc_install_bash_preexec() {
+  # Skip if already available at any known path
+  if [[ -f /usr/share/bash-preexec/bash-preexec.sh || -f "$HOME/.bash-preexec.sh" ]]; then
+    echo "[INFO] bash-preexec already available — skipping"
+    return 0
+  fi
+
+  echo "[INFO] Installing bash-preexec (required for atuin history recording)..."
+
+  if command -v pacman &>/dev/null; then
+    # Arch Linux
+    sudo pacman -S --noconfirm bash-preexec \
+      || curl -fsSL https://raw.githubusercontent.com/rcaloras/bash-preexec/master/bash-preexec.sh \
+           -o "$HOME/.bash-preexec.sh" \
+        && echo "[INFO] bash-preexec installed to ~/.bash-preexec.sh" \
+        || echo "[WARN] Could not install bash-preexec — atuin history recording may not work"
+  elif command -v apt-get &>/dev/null; then
+    # Ubuntu / Debian
+    sudo apt-get install -y bash-preexec 2>/dev/null \
+      || curl -fsSL https://raw.githubusercontent.com/rcaloras/bash-preexec/master/bash-preexec.sh \
+           -o "$HOME/.bash-preexec.sh" \
+        && echo "[INFO] bash-preexec installed to ~/.bash-preexec.sh" \
+        || echo "[WARN] Could not install bash-preexec — atuin history recording may not work"
+  else
+    # RHEL and others — not in standard repos, use curl install
+    curl -fsSL https://raw.githubusercontent.com/rcaloras/bash-preexec/master/bash-preexec.sh \
+      -o "$HOME/.bash-preexec.sh" \
+      && echo "[INFO] bash-preexec installed to ~/.bash-preexec.sh" \
+      || echo "[WARN] Could not install bash-preexec — atuin history recording may not work"
+  fi
+}
+_bc_install_bash_preexec
+
+# ==============================================================================
 # POST-INSTALL SETUP WIZARD
 # ==============================================================================
 # Source only the specific modules needed for the wizard rather than the full
