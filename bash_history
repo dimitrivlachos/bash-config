@@ -127,8 +127,49 @@ bc_verify_atuin() {
     return 1
   fi
 
-  # Check bash-preexec first — it's required for atuin to record history
-  bc_check_bash_preexec || true
+  # Check that atuin's recording hooks are wired into bash-preexec's arrays.
+  # If they're missing, call bc_check_bash_preexec to diagnose why.
+  local hooks_ok=true
+  if [[ " ${preexec_functions[*]:-} " == *" __atuin_preexec "* ]]; then
+    bc_log_success "atuin preexec hook registered (__atuin_preexec in preexec_functions)"
+  else
+    bc_log_error "atuin preexec hook NOT registered — commands will not be recorded"
+    hooks_ok=false
+  fi
+  if [[ " ${precmd_functions[*]:-} " == *" __atuin_precmd "* ]]; then
+    bc_log_success "atuin precmd hook registered (__atuin_precmd in precmd_functions)"
+  else
+    bc_log_error "atuin precmd hook NOT registered — exit codes and timing will not be recorded"
+    hooks_ok=false
+  fi
+  if [[ "$hooks_ok" == true ]]; then
+    bc_log_success "atuin recording hooks are active"
+  else
+    # Hooks missing — diagnose the underlying cause (bash-preexec not loaded/installed)
+    bc_check_bash_preexec || true
+  fi
+  echo
+
+  # Check atuin daemon status
+  if atuin daemon status &>/dev/null; then
+    local daemon_output
+    daemon_output=$(atuin daemon status 2>&1)
+    bc_log_success "atuin daemon is running"
+    echo -e "${BC_COLOR_GRAY}${daemon_output}${BC_COLOR_RESET}"
+  else
+    local daemon_exit=$?
+    local daemon_output
+    daemon_output=$(atuin daemon status 2>&1)
+    # Exit code 1 with "not running" output is the normal not-running state
+    if echo "$daemon_output" | grep -qi "not running\|no daemon\|not found\|connection refused"; then
+      bc_log_warn "atuin daemon is not running"
+      bc_log_info "Start it with:  atuin daemon &"
+    else
+      bc_log_warn "atuin daemon status unknown (exit $daemon_exit)"
+      [[ -n "$daemon_output" ]] && echo -e "${BC_COLOR_GRAY}${daemon_output}${BC_COLOR_RESET}"
+    fi
+  fi
+  echo
 
   local sync_url="https://atuin.lan"
   local atuin_cfg="${ATUIN_CONFIG_DIR:-$HOME/.config/atuin}/config.toml"
