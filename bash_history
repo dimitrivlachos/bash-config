@@ -84,6 +84,38 @@ bc_setup_atuin_config() {
   fi
 }
 
+# Check whether bash-preexec is installed and loaded.
+# Without it, atuin's precmd/preexec hooks are never called and history is not recorded.
+bc_check_bash_preexec() {
+  # Check if it's sourced in the current session (the definitive test)
+  if declare -f __bp_preexec_invoke_exec >/dev/null 2>&1; then
+    bc_log_success "bash-preexec is loaded in this session"
+    return 0
+  fi
+
+  # Not loaded — check if it's installed but not yet sourced (e.g. first run before reload)
+  local found_at=""
+  if [[ -f /usr/share/bash-preexec/bash-preexec.sh ]]; then
+    found_at="/usr/share/bash-preexec/bash-preexec.sh"
+  elif [[ -f "$HOME/.bash-preexec.sh" ]]; then
+    found_at="$HOME/.bash-preexec.sh"
+  fi
+
+  if [[ -n "$found_at" ]]; then
+    bc_log_warn "bash-preexec is installed ($found_at) but not loaded in this session"
+    bc_log_info "Reload your shell:  source ~/.bashrc"
+    return 1
+  fi
+
+  bc_log_error "bash-preexec is not installed"
+  bc_log_info "atuin will not record command history (timing, exit codes) without it"
+  bc_log_info "Install with:"
+  bc_log_info "  Arch:          sudo pacman -S bash-preexec"
+  bc_log_info "  Ubuntu/Debian: sudo apt install bash-preexec"
+  bc_log_info "  RHEL/other:    curl -fsSL https://raw.githubusercontent.com/rcaloras/bash-preexec/master/bash-preexec.sh -o ~/.bash-preexec.sh"
+  return 1
+}
+
 # Verify connectivity to the atuin sync server by curling its root endpoint.
 # A successful TLS handshake proves the CA cert is trusted by the system.
 # On success, displays the server response (Terry Pratchett quote).
@@ -94,6 +126,9 @@ bc_verify_atuin() {
     bc_log_warn "bc_verify_atuin is only supported on frostpaw systems"
     return 1
   fi
+
+  # Check bash-preexec first — it's required for atuin to record history
+  bc_check_bash_preexec || true
 
   local sync_url="https://atuin.lan"
   local atuin_cfg="${ATUIN_CONFIG_DIR:-$HOME/.config/atuin}/config.toml"

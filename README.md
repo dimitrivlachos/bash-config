@@ -57,6 +57,7 @@ This will:
     source ~/.bashrc_core
     ```
 - Create a placeholder `secrets/bash_secrets.sh` if it doesn't exist
+- Install **bash-preexec** (required for atuin history recording — see [Atuin History](#-atuin-history))
 
 ### 3. Set up Git configuration
 ```bash
@@ -215,7 +216,46 @@ The system will backup your existing config before generating a new one.
 
 ---
 
-## 💡 Prompt Toggles
+## � Atuin History
+
+[Atuin](https://github.com/atuinsh/atuin) is used as the primary shell history backend, providing cross-machine sync, per-command metadata (exit code, duration, host), and an interactive Ctrl+R search UI.
+
+### Dependencies
+
+Atuin relies on [bash-preexec](https://github.com/rcaloras/bash-preexec) to hook into bash's `preexec`/`precmd` lifecycle. **Without it, atuin will not record any commands** — the Ctrl+R search UI still works, but nothing new is added to history.
+
+The installer handles this automatically. To install manually:
+
+| Distro | Command |
+| ------ | ------- |
+| Arch Linux | `sudo pacman -S bash-preexec` |
+| Ubuntu / Debian | `sudo apt install bash-preexec` |
+| RHEL / other | `curl -fsSL https://raw.githubusercontent.com/rcaloras/bash-preexec/master/bash-preexec.sh -o ~/.bash-preexec.sh` |
+
+### Verifying the setup
+
+Check that bash-preexec is loaded and atuin is recording correctly:
+```bash
+bc_check_bash_preexec   # Check bash-preexec is installed and active
+bc_verify_atuin         # Check atuin sync server connectivity (frostpaw only)
+```
+
+If commands are not appearing in atuin search, run `bc_check_bash_preexec` — it will tell you whether bash-preexec is missing, installed-but-not-loaded, or fully active.
+
+### How recording works
+
+```
+bash runs a command
+  → bash-preexec fires preexec_functions[] → __atuin_preexec → atuin history start
+  → command executes
+  → bash-preexec fires precmd_functions[]  → __atuin_precmd  → atuin history end
+```
+
+The bash HISTFILE is still maintained as a passive text backup via `history -a` in `PROMPT_COMMAND`, so it remains intact if atuin ever becomes unavailable.
+
+---
+
+## �💡 Prompt Toggles
 These commands let you customise your prompt in real-time:
 | Command | Description |
 | ------- | ----------- |
