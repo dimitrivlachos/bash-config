@@ -5,12 +5,14 @@
 # Diamond Light Source work environment configuration.
 # Provides:
 #   - Module loading (CUDA, CMake)
-#   - Custom PATH additions
+#   - Pixi package manager (tools on science volume)
 #   - SSH agent setup for interactive shells
 #   - Hostname mapping for GPU nodes
 #   - VSCode symlink validation
-#   - Fastfetch and k9s configuration
+#   - Fastfetch configuration
+#   - Modern CLI aliases (eza, bat, ripgrep, fd)
 #   - Diamond-specific aliases
+#   - diamond-help / dh command reference
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
@@ -25,15 +27,15 @@ module load cmake/"$CMAKE_VERSION"
 # ------------------------------------------------------------------------------
 # Custom PATH
 # ------------------------------------------------------------------------------
-if [[ -n "${DIAMOND_USERNAME:-}" ]]; then
-  [[ -d "/dls/science/users/$DIAMOND_USERNAME/.tmux_install/tmux_build/bin" ]] && \
-    export PATH="/dls/science/users/$DIAMOND_USERNAME/.tmux_install/tmux_build/bin:$PATH"
+# if [[ -n "${DIAMOND_USERNAME:-}" ]]; then
+#   [[ -d "/dls/science/users/$DIAMOND_USERNAME/.tmux_install/tmux_build/bin" ]] && \
+#     export PATH="/dls/science/users/$DIAMOND_USERNAME/.tmux_install/tmux_build/bin:$PATH"
 
-  [[ -d "/home/$DIAMOND_USERNAME/.ninja/ninja" ]] && \
-    export PATH="/home/$DIAMOND_USERNAME/.ninja/ninja:$PATH"
+#   [[ -d "/home/$DIAMOND_USERNAME/.ninja/ninja" ]] && \
+#     export PATH="/home/$DIAMOND_USERNAME/.ninja/ninja:$PATH"
 
-  export CONDA_PKGS_DIRS="/dls/science/users/$DIAMOND_USERNAME/.conda/pkgs"
-fi
+#   export CONDA_PKGS_DIRS="/dls/science/users/$DIAMOND_USERNAME/.conda/pkgs"
+# fi
 
 # ------------------------------------------------------------------------------
 # Pixi Configuration
@@ -154,3 +156,66 @@ export FASTFETCH_CONFIG="$BASH_CONFIG_DIR/configs/fastfetch_diamond.jsonc"
 alias cdu='cd "$DIAMOND_WORK_DIR"'
 alias cdx='cd "$DIAMOND_SCRATCH_DIR"'
 alias build='./build.sh'
+
+# Modern CLI replacements (via pixi)
+alias ls='eza'
+alias ll='eza -la --git'
+alias lt='eza --tree --level=2'
+alias cat='bat --paging=never'
+alias grep='rg'
+alias find='fd'
+
+# ------------------------------------------------------------------------------
+# Diamond Help
+# ------------------------------------------------------------------------------
+diamond-help() {
+    local width
+    width=$(_update_get_width)
+    local line
+    line=$(printf '═%.0s' $(seq 1 "$width"))
+
+    cat << EOF
+${line}
+📚 DIAMOND ENVIRONMENT - COMMAND REFERENCE
+${line}
+
+📁 NAVIGATION
+  cdu             cd to \$DIAMOND_WORK_DIR
+  cdx             cd to \$DIAMOND_SCRATCH_DIR
+
+🔨 BUILD
+  build           Run ./build.sh in current directory
+
+🔍 DIAGNOSTICS
+  check_vscode_links    Verify VSCode remote symlinks are correctly set up
+
+🛠️  PIXI-MANAGED TOOLS
+  fastfetch       System info display  (config: fastfetch_diamond.jsonc)
+  k9s             Kubernetes TUI
+  tmux            Terminal multiplexer
+  htop / btop     Process monitors
+  eza             Modern ls  →  ls / ll / lt aliases
+  bat             Modern cat  →  cat alias
+  ripgrep (rg)    Modern grep  →  grep alias
+  fd              Modern find  →  find alias
+
+  Install all:  pixi global install htop btop ripgrep fd bat eza fastfetch k9s tmux
+
+🐚 CLI ALIASES
+  ls              eza
+  ll              eza -la --git
+  lt              eza --tree --level=2
+  cat             bat --paging=never
+  grep            rg
+  find            fd
+
+🔧 ENVIRONMENT
+  PIXI_HOME       /dls/science/users/\$DIAMOND_USERNAME/.pixi
+  PIXI_CACHE_DIR  \$PIXI_HOME/cache
+  FASTFETCH_CONFIG  \$BASH_CONFIG_DIR/configs/fastfetch_diamond.jsonc
+
+${line}
+EOF
+}
+
+alias dh='diamond-help'
