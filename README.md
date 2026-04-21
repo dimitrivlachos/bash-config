@@ -102,7 +102,7 @@ export PIXI_CACHE_DIR="$PIXI_HOME/cache"
 ### Installing tools
 
 ```bash
-pixi global install htop btop ripgrep fd bat eza fastfetch k9s tmux
+pixi global install htop btop nvtop ripgrep fd bat eza fastfetch k9s tmux
 ```
 
 ### Modern CLI aliases
