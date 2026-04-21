@@ -82,9 +82,14 @@ _update_command() {
 # ==============================================================================
 _detect_os() {
     if [[ -f /etc/os-release ]]; then
-        # shellcheck source=/dev/null
-        source /etc/os-release
-        case "$ID" in
+        local os_id os_id_like
+        { read -r os_id; read -r os_id_like; } < <(
+            # shellcheck source=/dev/null
+            . /etc/os-release 2>/dev/null
+            echo "${ID:-}"
+            echo "${ID_LIKE:-}"
+        )
+        case "$os_id" in
             arch|manjaro|endeavouros)
                 echo "arch"
                 ;;
@@ -99,11 +104,11 @@ _detect_os() {
                 ;;
             *)
                 # Check for derivatives
-                if [[ "$ID_LIKE" == *"arch"* ]]; then
+                if [[ "$os_id_like" == *"arch"* ]]; then
                     echo "arch"
-                elif [[ "$ID_LIKE" == *"debian"* ]]; then
+                elif [[ "$os_id_like" == *"debian"* ]]; then
                     echo "debian"
-                elif [[ "$ID_LIKE" == *"rhel"* || "$ID_LIKE" == *"fedora"* ]]; then
+                elif [[ "$os_id_like" == *"rhel"* || "$os_id_like" == *"fedora"* ]]; then
                     echo "rhel"
                 else
                     echo "unknown"
@@ -118,7 +123,7 @@ _detect_os() {
 _get_os_pretty_name() {
     if [[ -f /etc/os-release ]]; then
         # shellcheck source=/dev/null
-        source /etc/os-release
+        . /etc/os-release 2>/dev/null
         echo "${PRETTY_NAME:-Unknown OS}"
     else
         echo "Unknown OS"
