@@ -6,15 +6,16 @@
 # This file is typically symlinked to ~/.bashrc_core and sourced from ~/.bashrc.
 #
 # Load Order:
-#   1. secrets/bash_secrets.sh  - Sensitive credentials (gitignored)
-#   2. bash_aliases             - Shared aliases
-#   3. bash_exports             - Shared environment variables
-#   4. bash_prompt              - Prompt configuration
-#   5. bash_tools               - Utility functions
-#   6. bash_ssh                 - SSH management
-#   7. bash_history             - History management
-#   8. bash_config_update       - bash-config repo self-update (bc_check_updates, bc_update_config)
-#   9. specialisations/bashrc_* - Machine-specific configuration
+#   1. bash_logging             - Color constants and bc_log_* functions (loaded first)
+#   2. secrets/bash_secrets.sh  - Sensitive credentials (gitignored)
+#   3. bash_aliases             - Shared aliases
+#   4. bash_exports             - Shared environment variables
+#   5. bash_prompt              - Prompt configuration
+#   6. bash_tools               - Utility functions
+#   7. bash_ssh                 - SSH management
+#   8. bash_history             - History management
+#   9. bash_config_update       - bash-config repo self-update (bc_check_updates, bc_update_config)
+#  10. specialisations/bashrc_* - Machine-specific configuration
 #
 # Environment Variables:
 #   BASH_SPECIALISATION  - Set in ~/.bashrc to select specialisation
@@ -60,6 +61,7 @@ bc_source_if_exists() {
 }
 
 # Load core modules
+bc_source_if_exists "$BASH_CONFIG_DIR/bash_logging" "Logging"
 bc_source_if_exists "$BASH_CONFIG_DIR/secrets/bash_secrets.sh" "Secrets file"
 bc_source_if_exists "$BASH_CONFIG_DIR/bash_aliases" "Aliases"
 bc_source_if_exists "$BASH_CONFIG_DIR/bash_exports" "Exports"

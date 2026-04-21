@@ -1,0 +1,45 @@
+#!/bin/bash
+# ==============================================================================
+# LOGGING
+# ==============================================================================
+# Centralised colored logging for all bash-config components.
+# Loaded first so every module has logging available from the start.
+#
+# Usage:
+#   bc_log_info "message"
+#   bc_log_warn "message"
+#   bc_log_error "message"
+#   bc_log_success "message"
+#   bc_log_debug "message"   # only prints when BASH_CONFIG_DEBUG=true
+# ==============================================================================
+
+# Color codes
+BC_COLOR_RED='\033[0;31m'
+BC_COLOR_GREEN='\033[0;32m'
+BC_COLOR_YELLOW='\033[1;33m'
+BC_COLOR_BLUE='\033[0;34m'
+BC_COLOR_MAGENTA='\033[0;35m'
+BC_COLOR_CYAN='\033[0;36m'
+BC_COLOR_GRAY='\033[0;37m'    # also used as "white" in some contexts
+BC_COLOR_BOLD='\033[1m'
+BC_COLOR_RESET='\033[0m'
+
+bc_log_error() {
+  echo -e "${BC_COLOR_RED}❌ [ERROR]${BC_COLOR_RESET} $*" >&2
+}
+
+bc_log_warn() {
+  echo -e "${BC_COLOR_YELLOW}⚠️  [WARN]${BC_COLOR_RESET} $*" >&2
+}
+
+bc_log_info() {
+  echo -e "${BC_COLOR_BLUE}ℹ️  [INFO]${BC_COLOR_RESET} $*" >&2
+}
+
+bc_log_success() {
+  echo -e "${BC_COLOR_GREEN}✅ [SUCCESS]${BC_COLOR_RESET} $*" >&2
+}
+
+bc_log_debug() {
+  [[ "${BASH_CONFIG_DEBUG:-}" == "true" ]] && echo -e "${BC_COLOR_GRAY}🔍 [DEBUG]${BC_COLOR_RESET} $*" >&2
+}
