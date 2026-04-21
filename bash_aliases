@@ -12,7 +12,23 @@
 # ------------------------------------------------------------------------------
 # Core System
 # ------------------------------------------------------------------------------
-alias ls='ls --color=auto'
+
+# Alias's for modern cli tools if available (eza, bat, rg, fd)
+# Falls back to standard tools if not installed
+if command -v eza &>/dev/null; then
+    alias ls='eza'
+    alias ll='eza -la --git'
+    alias lt='eza --tree --level=2'
+else
+    alias ls='ls --color=auto'
+    alias ll='ls -la --color=auto'
+fi
+
+command -v bat &>/dev/null && alias cat='bat --paging=never'
+command -v rg  &>/dev/null && alias grep='rg'
+command -v fd  &>/dev/null && alias find='fd'
+
+# General shortcuts
 alias clear='\clear && ff'           # Clear screen and run fastfetch
 alias clearf='clear'                 # Legacy alias for clear with fastfetch
 alias clearall='\clear'              # Regular clear without fastfetch

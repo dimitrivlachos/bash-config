@@ -157,13 +157,6 @@ alias cdu='cd "$DIAMOND_WORK_DIR"'
 alias cdx='cd "$DIAMOND_SCRATCH_DIR"'
 alias build='./build.sh'
 
-# Modern CLI replacements (via pixi)
-alias ls='eza'
-alias ll='eza -la --git'
-alias lt='eza --tree --level=2'
-alias cat='bat --paging=never'
-alias grep='rg'
-alias find='fd'
 
 # ------------------------------------------------------------------------------
 # Diamond Help
