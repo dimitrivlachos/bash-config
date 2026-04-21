@@ -82,8 +82,8 @@ asteria-help() {
     echo -e "\033[1;33mPackage Management:\033[0m"
     echo "  update           - Update system packages (with coloured output)"
     echo "  cleanup          - Remove unused packages and clean package cache"
-    echo "  full-update      - Complete system update (update + cleanup + fastfetch)"
-    echo "  update-help      - Show detailed update system help"
+    echo "  full_update      - Complete system update (update + cleanup + fastfetch)"
+    echo "  update_help      - Show detailed update system help"
     echo
     echo -e "\033[1;34mDocker Commands:\033[0m"
     echo "  dps              - Show running containers"

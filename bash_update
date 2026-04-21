@@ -13,7 +13,7 @@
 #   - Flatpak (cross-platform, if installed)
 #   - Atuin (cross-platform, if script-installed to ~/.atuin/bin)
 #
-# Usage: update, cleanup, full-update
+# Usage: update, cleanup, full_update
 # ==============================================================================
 
 
@@ -526,7 +526,7 @@ cleanup() {
 }
 
 # Full update - updates and cleans up
-full-update() {
+full_update() {
     local os_type
     os_type=$(_detect_os)
     
@@ -570,15 +570,18 @@ full-update() {
     fi
 }
 
-# Alias for full-update
-update-all() {
-    full-update
+alias full-update='full_update'
+
+# Alias for full_update
+update_all() {
+    full_update
 }
+alias update-all='update_all'
 
 # ==============================================================================
 # HELP FUNCTION
 # ==============================================================================
-update-help() {
+update_help() {
     local width
     width=$(_update_get_width)
     local line
@@ -592,9 +595,9 @@ ${line}
 🚀 COMMANDS
   update          Update system packages
   cleanup         Remove orphaned/unused packages
-  full-update     Complete update + cleanup (+ fastfetch on Pi)
-  update-all      Alias for full-update
-  update-help     Show this help message
+  full_update     Complete update + cleanup (+ fastfetch on Pi)
+  update_all      Alias for full_update
+  update_help     Show this help message
 
 📦 SUPPORTED SYSTEMS
   Arch Linux      pacman + AUR (yay/paru)
@@ -616,11 +619,12 @@ ${line}
 💡 EXAMPLES
   update          # Update packages only
   cleanup         # Clean up orphaned packages
-  full-update     # Do everything
+  full_update     # Do everything
 
 ${line}
 EOF
 }
 
 # Shorthand alias
-alias uh='update-help'
+alias uh='update_help'
+alias update-help='update_help'

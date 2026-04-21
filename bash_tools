@@ -437,8 +437,8 @@ bc_help() {
             echo -e "${BC_COLOR_BLUE}OS package updates (bash_update):${BC_COLOR_RESET}"
             echo "  update                     - Update system packages"
             echo "  cleanup                    - Remove orphaned packages"
-            echo "  full-update                - Update + cleanup"
-            echo "  update-help                - Full OS update help"
+            echo "  full_update                - Update + cleanup"
+            echo "  update_help                - Full OS update help"
             echo
             echo -e "${BC_COLOR_BLUE}Examples:${BC_COLOR_RESET}"
             echo "  bc_check_updates           # Check config repo for new commits"

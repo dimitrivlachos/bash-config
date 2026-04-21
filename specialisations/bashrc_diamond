@@ -12,7 +12,7 @@
 #   - Fastfetch configuration
 #   - Modern CLI aliases (eza, bat, ripgrep, fd)
 #   - Diamond-specific aliases
-#   - diamond-help / dh command reference
+#   - diamond_help / dh command reference
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
@@ -168,7 +168,7 @@ alias find='fd'
 # ------------------------------------------------------------------------------
 # Diamond Help
 # ------------------------------------------------------------------------------
-diamond-help() {
+diamond_help() {
     local width
     width=$(_update_get_width)
     local line
@@ -219,4 +219,5 @@ ${line}
 EOF
 }
 
-alias dh='diamond-help'
+alias dh='diamond_help'
+alias diamond-help='diamond_help'
