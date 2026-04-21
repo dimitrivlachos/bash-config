@@ -418,12 +418,11 @@ _update_atuin() {
 # PIXI UPDATE FUNCTIONS
 # ==============================================================================
 _update_pixi() {
-    _update_section "📦 Pixi - Package Manager"
-
     if ! command -v pixi &>/dev/null; then
-        _update_skip "Pixi not installed"
         return 0
     fi
+
+    _update_section "📦 Pixi - Package Manager"
 
     # Only self-update if installed under PIXI_HOME (i.e. not via a system package manager).
     local pixi_path
