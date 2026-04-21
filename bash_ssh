@@ -182,10 +182,9 @@ bc_ssh_master_start() {
     bc_log_info "Starting master connection to $host..."
     if ssh -MNf "$host"; then
         bc_log_success "Master connection to $host started"
-        bc_log_debug "Master connection process backgrounded successfully"
+        return 0
     else
         bc_log_error "Failed to start master connection to $host"
-        bc_log_debug "SSH master connection command failed with exit code: $?"
         return 1
     fi
 }
@@ -226,6 +225,9 @@ bc_ssh_master_stop() {
         [[ $stopped -gt 0 ]] && bc_log_success "Closed $stopped master connection(s)"
         [[ $failed -gt 0 ]] && bc_log_debug "Removed $failed stale socket(s)"
     fi
+
+    # Also stop the SOCKS proxy if running
+    diamond-proxy-stop
 }
 
 # ==============================================================================
@@ -730,12 +732,14 @@ bc_ssh_help() {
     echo -e "    Shortcut: force cleanup all SSH agents with confirmation prompt"
     echo
     echo -e "${BC_COLOR_BLUE}Quick Aliases:${BC_COLOR_RESET}"
-    echo -e "  ${BC_COLOR_GREEN}ssh-setup${BC_COLOR_RESET}       → bc_ssh_workday_setup"
-    echo -e "  ${BC_COLOR_GREEN}ssh-fix-perms${BC_COLOR_RESET}   → bc_fix_ssh_permissions"
-    echo -e "  ${BC_COLOR_GREEN}ssh-status${BC_COLOR_RESET}      → bc_ssh_master_status"
-    echo -e "  ${BC_COLOR_GREEN}ssh-master${BC_COLOR_RESET}      → bc_ssh_master_start"
-    echo -e "  ${BC_COLOR_GREEN}ssh-exit${BC_COLOR_RESET}        → bc_ssh_master_stop"
-    echo -e "  ${BC_COLOR_GREEN}ssh-help${BC_COLOR_RESET}        → bc_ssh_help"
+    echo -e "  ${BC_COLOR_GREEN}ssh-setup${BC_COLOR_RESET}           → bc_ssh_workday_setup (starts proxy in background)"
+    echo -e "  ${BC_COLOR_GREEN}ssh-fix-perms${BC_COLOR_RESET}       → bc_fix_ssh_permissions"
+    echo -e "  ${BC_COLOR_GREEN}ssh-status${BC_COLOR_RESET}          → bc_ssh_master_status"
+    echo -e "  ${BC_COLOR_GREEN}ssh-master${BC_COLOR_RESET}          → bc_ssh_master_start"
+    echo -e "  ${BC_COLOR_GREEN}ssh-exit${BC_COLOR_RESET}            → bc_ssh_master_stop (also stops SOCKS proxy)"
+    echo -e "  ${BC_COLOR_GREEN}diamond-proxy [port]${BC_COLOR_RESET} → start SOCKS proxy in background (default: 8080)"
+    echo -e "  ${BC_COLOR_GREEN}diamond-proxy-stop${BC_COLOR_RESET}  → stop background SOCKS proxy"
+    echo -e "  ${BC_COLOR_GREEN}ssh-help${BC_COLOR_RESET}            → bc_ssh_help"
     echo
     echo -e "${BC_COLOR_BLUE}Examples:${BC_COLOR_RESET}"
     echo -e "  ${BC_COLOR_GRAY}# Full work day setup${BC_COLOR_RESET}"
@@ -762,14 +766,42 @@ bc_ssh_help() {
 # ==============================================================================
 
 # Diamond SOCKS proxy functions (for accessing Diamond intranet from local machine)
-# Start Diamond SOCKS proxy for web browsing
+# Start Diamond SOCKS proxy for web browsing (runs in background)
 diamond-proxy() {
     local port="${1:-8080}"
+    local pid_file="$HOME/.diamond-proxy.pid"
+
+    # Check if already running
+    if [[ -f "$pid_file" ]] && kill -0 "$(cat "$pid_file")" 2>/dev/null; then
+        bc_log_warn "SOCKS proxy already running on port $port (PID: $(cat "$pid_file"))"
+        return 0
+    fi
+
     bc_log_info "Starting SOCKS proxy on port $port..."
-    echo "Configure FoxyProxy: SOCKS5 127.0.0.1:$port"
-    echo "For Diamond intranet access, use patterns: *.diamond.ac.uk, *.diamond"
-    echo "Press Ctrl+C to stop the proxy"
-    ssh -D "$port" -C -N bastion
+    ssh -D "$port" -C -N -q bastion &
+    local proxy_pid=$!
+    disown "$proxy_pid"
+    echo "$proxy_pid" > "$pid_file"
+    bc_log_success "SOCKS proxy running on port $port (PID: $proxy_pid)"
+    echo "Configure FoxyProxy: SOCKS5 127.0.0.1:$port — patterns: *.diamond.ac.uk, *.diamond"
+    echo "Run 'ssh-exit' or 'diamond-proxy-stop' to stop"
+}
+
+# Stop the background SOCKS proxy
+diamond-proxy-stop() {
+    local pid_file="$HOME/.diamond-proxy.pid"
+    if [[ -f "$pid_file" ]]; then
+        local pid
+        pid=$(cat "$pid_file")
+        if kill "$pid" 2>/dev/null; then
+            bc_log_success "SOCKS proxy stopped (PID: $pid)"
+        else
+            bc_log_debug "Proxy process already gone (PID: $pid)"
+        fi
+        rm -f "$pid_file"
+    else
+        bc_log_debug "No SOCKS proxy PID file found"
+    fi
 }
 
 # List all active Diamond SSH connections
