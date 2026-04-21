@@ -771,10 +771,23 @@ bc_import_history() {
   if [[ -f "$HISTFILE" ]]; then
     # Backup current history first
     bc_backup_history
-    
-    # Merge histories, remove duplicates, sort by timestamp
-    cat "$HISTFILE" "$source_file" | sort | uniq > "${HISTFILE}.tmp"
-    mv "${HISTFILE}.tmp" "$HISTFILE"
+
+    local temp_file
+    temp_file=$(mktemp)
+
+    # Merge while preserving timestamp+command pair structure
+    awk '
+    /^#[0-9]+$/ { timestamp = $0; next }
+    {
+      combo = timestamp "\n" $0
+      if (!seen[combo]++) {
+        print timestamp
+        print $0
+      }
+    }
+    ' "$HISTFILE" "$source_file" > "$temp_file"
+
+    mv "$temp_file" "$HISTFILE"
     bc_log_success "History imported and merged from: $source_file"
     sync_history
   else
