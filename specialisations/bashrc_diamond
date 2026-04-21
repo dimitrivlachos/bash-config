@@ -36,6 +36,15 @@ if [[ -n "${DIAMOND_USERNAME:-}" ]]; then
 fi
 
 # ------------------------------------------------------------------------------
+# Pixi Configuration
+# ------------------------------------------------------------------------------
+if [[ -n "${DIAMOND_USERNAME:-}" ]]; then
+  export PIXI_HOME="/dls/science/users/$DIAMOND_USERNAME/.pixi"
+  export PIXI_CACHE_DIR="$PIXI_HOME/cache"
+  [[ -d "$PIXI_HOME/bin" ]] && export PATH="$PIXI_HOME/bin:$PATH"
+fi
+
+# ------------------------------------------------------------------------------
 # SSH Setup (interactive shells only)
 # ------------------------------------------------------------------------------
 # SSH agent — start an empty agent for connection multiplexing (do not preload keys)

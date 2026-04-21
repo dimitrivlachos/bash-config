@@ -415,6 +415,38 @@ _update_atuin() {
 }
 
 # ==============================================================================
+# PIXI UPDATE FUNCTIONS
+# ==============================================================================
+_update_pixi() {
+    _update_section "📦 Pixi - Package Manager"
+
+    if ! command -v pixi &>/dev/null; then
+        _update_skip "Pixi not installed"
+        return 0
+    fi
+
+    # Only self-update if installed under PIXI_HOME (i.e. not via a system package manager).
+    local pixi_path
+    pixi_path=$(command -v pixi)
+    local expected_path="${PIXI_HOME:-$HOME/.pixi}/bin/pixi"
+    if [[ "$pixi_path" != "$expected_path" ]]; then
+        _update_skip "Pixi managed by system package manager (${pixi_path})"
+        return 0
+    fi
+
+    _update_info "Updating script-installed pixi..."
+    _update_command "pixi self-update" "Self-update the pixi binary"
+
+    if pixi self-update; then
+        _update_success "Pixi update complete"
+        return 0
+    else
+        _update_error "Pixi update failed"
+        return 1
+    fi
+}
+
+# ==============================================================================
 # MAIN UPDATE FUNCTIONS
 # ==============================================================================
 
@@ -435,8 +467,10 @@ update() {
             local flatpak_result=$?
             _update_atuin
             local atuin_result=$?
+            _update_pixi
+            local pixi_result=$?
             
-            if [[ $pacman_result -eq 0 && $aur_result -eq 0 && $flatpak_result -eq 0 && $atuin_result -eq 0 ]]; then
+            if [[ $pacman_result -eq 0 && $aur_result -eq 0 && $flatpak_result -eq 0 && $atuin_result -eq 0 && $pixi_result -eq 0 ]]; then
                 echo -e "\n${BC_COLOR_GREEN}${BC_COLOR_BOLD}✓ All updates completed successfully${BC_COLOR_RESET}\n"
                 return 0
             else
@@ -451,8 +485,10 @@ update() {
             local flatpak_result=$?
             _update_atuin
             local atuin_result=$?
+            _update_pixi
+            local pixi_result=$?
             
-            if [[ $apt_result -eq 0 && $flatpak_result -eq 0 && $atuin_result -eq 0 ]]; then
+            if [[ $apt_result -eq 0 && $flatpak_result -eq 0 && $atuin_result -eq 0 && $pixi_result -eq 0 ]]; then
                 echo -e "\n${BC_COLOR_GREEN}${BC_COLOR_BOLD}✓ All updates completed successfully${BC_COLOR_RESET}\n"
                 return 0
             else
@@ -467,8 +503,10 @@ update() {
             local flatpak_result=$?
             _update_atuin
             local atuin_result=$?
+            _update_pixi
+            local pixi_result=$?
             
-            if [[ $apt_result -eq 0 && $flatpak_result -eq 0 && $atuin_result -eq 0 ]]; then
+            if [[ $apt_result -eq 0 && $flatpak_result -eq 0 && $atuin_result -eq 0 && $pixi_result -eq 0 ]]; then
                 echo -e "\n${BC_COLOR_GREEN}${BC_COLOR_BOLD}✓ All updates completed successfully${BC_COLOR_RESET}\n"
                 return 0
             else
@@ -478,7 +516,14 @@ update() {
             ;;
         rhel)
             _update_rhel_notice
-            return 0
+            _update_pixi
+            local pixi_result=$?
+            if [[ $pixi_result -eq 0 ]]; then
+                echo -e "\n${BC_COLOR_GREEN}${BC_COLOR_BOLD}✓ Tool updates completed successfully${BC_COLOR_RESET}\n"
+            else
+                echo -e "\n${BC_COLOR_YELLOW}${BC_COLOR_BOLD}⚠ Tool updates completed with some issues${BC_COLOR_RESET}\n"
+            fi
+            return $pixi_result
             ;;
         *)
             _update_error "Unknown operating system"
@@ -614,6 +659,7 @@ ${line}
   RHEL/CentOS     Detection only (managed systems)
   Flatpak         Cross-platform (if installed)
   Atuin           Cross-platform, script-installed only (~/.atuin/bin)
+  Pixi            Cross-platform, script-installed only (\$PIXI_HOME/bin)
 
 🎨 OUTPUT COLOURS
   Blue            Section headers
