@@ -169,28 +169,14 @@ _update_arch_aur() {
     _update_info "Using AUR helper: ${aur_helper}"
     _update_info "Checking for AUR package updates..."
     
-    case "$aur_helper" in
-        yay)
-            _update_command "yay -Sua" "-S: install packages | -u: upgrade packages | -a: AUR packages only"
-            if yay -Sua; then
-                _update_success "AUR update complete"
-                return 0
-            else
-                _update_error "AUR update failed"
-                return 1
-            fi
-            ;;
-        paru)
-            _update_command "paru -Sua" "-S: install packages | -u: upgrade packages | -a: AUR packages only"
-            if paru -Sua; then
-                _update_success "AUR update complete"
-                return 0
-            else
-                _update_error "AUR update failed"
-                return 1
-            fi
-            ;;
-    esac
+    _update_command "$aur_helper -Sua" "-S: install packages | -u: upgrade packages | -a: AUR packages only"
+    if $aur_helper -Sua; then
+        _update_success "AUR update complete"
+        return 0
+    else
+        _update_error "AUR update failed"
+        return 1
+    fi
 }
 
 _cleanup_arch() {
@@ -446,6 +432,18 @@ _update_pixi() {
 }
 
 # ==============================================================================
+# CROSS-PLATFORM UPDATERS
+# ==============================================================================
+# Runs the tools common to all non-RHEL platforms (flatpak, atuin, pixi).
+_update_cross_platform() {
+    local overall=0
+    _update_flatpak || overall=1
+    _update_atuin   || overall=1
+    _update_pixi    || overall=1
+    return $overall
+}
+
+# ==============================================================================
 # MAIN UPDATE FUNCTIONS
 # ==============================================================================
 
@@ -453,76 +451,23 @@ _update_pixi() {
 update() {
     local os_type
     os_type=$(_detect_os)
-    
+
     _update_header "🔄 System Update - ${BC_COLOR_BOLD}$(_get_os_pretty_name)${BC_COLOR_RESET}"
-    
+
+    local overall=0
     case "$os_type" in
         arch)
-            _update_arch_pacman
-            local pacman_result=$?
-            _update_arch_aur
-            local aur_result=$?
-            _update_flatpak
-            local flatpak_result=$?
-            _update_atuin
-            local atuin_result=$?
-            _update_pixi
-            local pixi_result=$?
-            
-            if [[ $pacman_result -eq 0 && $aur_result -eq 0 && $flatpak_result -eq 0 && $atuin_result -eq 0 && $pixi_result -eq 0 ]]; then
-                echo -e "\n${BC_COLOR_GREEN}${BC_COLOR_BOLD}✓ All updates completed successfully${BC_COLOR_RESET}\n"
-                return 0
-            else
-                echo -e "\n${BC_COLOR_YELLOW}${BC_COLOR_BOLD}⚠ Updates completed with some issues${BC_COLOR_RESET}\n"
-                return 1
-            fi
+            _update_arch_pacman    || overall=1
+            _update_arch_aur       || overall=1
+            _update_cross_platform || overall=1
             ;;
-        debian)
-            _update_debian_apt
-            local apt_result=$?
-            _update_flatpak
-            local flatpak_result=$?
-            _update_atuin
-            local atuin_result=$?
-            _update_pixi
-            local pixi_result=$?
-            
-            if [[ $apt_result -eq 0 && $flatpak_result -eq 0 && $atuin_result -eq 0 && $pixi_result -eq 0 ]]; then
-                echo -e "\n${BC_COLOR_GREEN}${BC_COLOR_BOLD}✓ All updates completed successfully${BC_COLOR_RESET}\n"
-                return 0
-            else
-                echo -e "\n${BC_COLOR_YELLOW}${BC_COLOR_BOLD}⚠ Updates completed with some issues${BC_COLOR_RESET}\n"
-                return 1
-            fi
-            ;;
-        raspbian)
-            _update_debian_apt
-            local apt_result=$?
-            _update_flatpak
-            local flatpak_result=$?
-            _update_atuin
-            local atuin_result=$?
-            _update_pixi
-            local pixi_result=$?
-            
-            if [[ $apt_result -eq 0 && $flatpak_result -eq 0 && $atuin_result -eq 0 && $pixi_result -eq 0 ]]; then
-                echo -e "\n${BC_COLOR_GREEN}${BC_COLOR_BOLD}✓ All updates completed successfully${BC_COLOR_RESET}\n"
-                return 0
-            else
-                echo -e "\n${BC_COLOR_YELLOW}${BC_COLOR_BOLD}⚠ Updates completed with some issues${BC_COLOR_RESET}\n"
-                return 1
-            fi
+        debian|raspbian)
+            _update_debian_apt     || overall=1
+            _update_cross_platform || overall=1
             ;;
         rhel)
             _update_rhel_notice
-            _update_pixi
-            local pixi_result=$?
-            if [[ $pixi_result -eq 0 ]]; then
-                echo -e "\n${BC_COLOR_GREEN}${BC_COLOR_BOLD}✓ Tool updates completed successfully${BC_COLOR_RESET}\n"
-            else
-                echo -e "\n${BC_COLOR_YELLOW}${BC_COLOR_BOLD}⚠ Tool updates completed with some issues${BC_COLOR_RESET}\n"
-            fi
-            return $pixi_result
+            _update_pixi           || overall=1
             ;;
         *)
             _update_error "Unknown operating system"
@@ -531,43 +476,31 @@ update() {
             return 1
             ;;
     esac
+
+    if [[ $overall -eq 0 ]]; then
+        echo -e "\n${BC_COLOR_GREEN}${BC_COLOR_BOLD}✓ All updates completed successfully${BC_COLOR_RESET}\n"
+    else
+        echo -e "\n${BC_COLOR_YELLOW}${BC_COLOR_BOLD}⚠ Updates completed with some issues${BC_COLOR_RESET}\n"
+    fi
+    return $overall
 }
 
 # Cleanup function - removes orphaned/unused packages
 cleanup() {
     local os_type
     os_type=$(_detect_os)
-    
+
     _update_header "🧹 System Cleanup - ${BC_COLOR_BOLD}$(_get_os_pretty_name)${BC_COLOR_RESET}"
-    
+
+    local overall=0
     case "$os_type" in
         arch)
-            _cleanup_arch
-            local arch_result=$?
-            _cleanup_flatpak
-            local flatpak_result=$?
-            
-            if [[ $arch_result -eq 0 && $flatpak_result -eq 0 ]]; then
-                echo -e "\n${BC_COLOR_GREEN}${BC_COLOR_BOLD}✓ Cleanup completed successfully${BC_COLOR_RESET}\n"
-                return 0
-            else
-                echo -e "\n${BC_COLOR_YELLOW}${BC_COLOR_BOLD}⚠ Cleanup completed with some issues${BC_COLOR_RESET}\n"
-                return 1
-            fi
+            _cleanup_arch    || overall=1
+            _cleanup_flatpak || overall=1
             ;;
         debian|raspbian)
-            _cleanup_debian
-            local debian_result=$?
-            _cleanup_flatpak
-            local flatpak_result=$?
-            
-            if [[ $debian_result -eq 0 && $flatpak_result -eq 0 ]]; then
-                echo -e "\n${BC_COLOR_GREEN}${BC_COLOR_BOLD}✓ Cleanup completed successfully${BC_COLOR_RESET}\n"
-                return 0
-            else
-                echo -e "\n${BC_COLOR_YELLOW}${BC_COLOR_BOLD}⚠ Cleanup completed with some issues${BC_COLOR_RESET}\n"
-                return 1
-            fi
+            _cleanup_debian  || overall=1
+            _cleanup_flatpak || overall=1
             ;;
         rhel)
             _update_rhel_notice
@@ -578,6 +511,13 @@ cleanup() {
             return 1
             ;;
     esac
+
+    if [[ $overall -eq 0 ]]; then
+        echo -e "\n${BC_COLOR_GREEN}${BC_COLOR_BOLD}✓ Cleanup completed successfully${BC_COLOR_RESET}\n"
+    else
+        echo -e "\n${BC_COLOR_YELLOW}${BC_COLOR_BOLD}⚠ Cleanup completed with some issues${BC_COLOR_RESET}\n"
+    fi
+    return $overall
 }
 
 # Full update - updates and cleans up
