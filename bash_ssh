@@ -202,6 +202,32 @@ bc_ssh_master_status() {
     fi
 }
 
+bc_ssh_master_stop() {
+    local stopped=0
+    local failed=0
+    bc_log_debug "Closing all SSH master connections via ControlPath sockets"
+    for socket in ~/.ssh/cm-*; do
+        [[ -S "$socket" ]] || continue
+        local label
+        label=$(basename "$socket")
+        if ssh -O exit -o ControlPath="$socket" placeholder 2>/dev/null; then
+            bc_log_success "Closed: $label"
+            ((stopped++))
+        else
+            # Socket may already be dead — remove the stale file
+            rm -f "$socket"
+            bc_log_debug "Removed stale socket: $label"
+            ((failed++))
+        fi
+    done
+    if [[ $stopped -eq 0 && $failed -eq 0 ]]; then
+        bc_log_info "No active master connections found"
+    else
+        [[ $stopped -gt 0 ]] && bc_log_success "Closed $stopped master connection(s)"
+        [[ $failed -gt 0 ]] && bc_log_debug "Removed $failed stale socket(s)"
+    fi
+}
+
 # ==============================================================================
 # DAILY WORK SETUP
 # ==============================================================================
@@ -684,6 +710,8 @@ bc_ssh_help() {
     echo -e "    Start master connection to host"
     echo -e "  ${BC_COLOR_GREEN}bc_ssh_master_status${BC_COLOR_RESET}"
     echo -e "    Show active master connections"
+    echo -e "  ${BC_COLOR_GREEN}bc_ssh_master_stop${BC_COLOR_RESET}"
+    echo -e "    Close all active master connections"
     echo
     echo -e "${BC_COLOR_BLUE}Agent Management:${BC_COLOR_RESET}"
     echo -e "  ${BC_COLOR_GREEN}bc_setup_ssh_agent [agent_file]${BC_COLOR_RESET}"
@@ -704,6 +732,7 @@ bc_ssh_help() {
     echo -e "  ${BC_COLOR_GREEN}ssh-fix-perms${BC_COLOR_RESET}   → bc_fix_ssh_permissions"
     echo -e "  ${BC_COLOR_GREEN}ssh-status${BC_COLOR_RESET}      → bc_ssh_master_status"
     echo -e "  ${BC_COLOR_GREEN}ssh-master${BC_COLOR_RESET}      → bc_ssh_master_start"
+    echo -e "  ${BC_COLOR_GREEN}ssh-exit${BC_COLOR_RESET}        → bc_ssh_master_stop"
     echo -e "  ${BC_COLOR_GREEN}ssh-help${BC_COLOR_RESET}        → bc_ssh_help"
     echo
     echo -e "${BC_COLOR_BLUE}Examples:${BC_COLOR_RESET}"
@@ -757,4 +786,5 @@ alias ssh-setup-only='bc_ssh_workday_setup false'
 alias ssh-fix-perms='bc_fix_ssh_permissions'
 alias ssh-status='bc_ssh_master_status'
 alias ssh-master='bc_ssh_master_start'
+alias ssh-exit='bc_ssh_master_stop'
 alias ssh-help='bc_ssh_help'
