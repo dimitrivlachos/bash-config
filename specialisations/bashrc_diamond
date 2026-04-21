@@ -194,12 +194,13 @@ ${line}
   k9s             Kubernetes TUI
   tmux            Terminal multiplexer
   htop / btop     Process monitors
+  nvtop           GPU process monitor
   eza             Modern ls  →  ls / ll / lt aliases
   bat             Modern cat  →  cat alias
   ripgrep (rg)    Modern grep  →  grep alias
   fd              Modern find  →  find alias
 
-  Install all:  pixi global install htop btop ripgrep fd bat eza fastfetch k9s tmux
+  Install all:  pixi global install htop btop nvtop ripgrep fd bat eza fastfetch k9s tmux
 
 🐚 CLI ALIASES
   ls              eza
