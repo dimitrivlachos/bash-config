@@ -181,22 +181,22 @@ _update_arch_aur() {
 
 _cleanup_arch() {
     _update_section "🧹 Cleanup - Removing Orphaned Packages"
-    
-    local orphans
-    orphans=$(pacman -Qdtq 2>/dev/null)
-    
-    if [[ -z "$orphans" ]]; then
+
+    local -a orphans
+    mapfile -t orphans < <(pacman -Qdtq 2>/dev/null)
+
+    if [[ ${#orphans[@]} -eq 0 ]]; then
         _update_success "No orphan packages found"
         return 0
     fi
-    
+
     _update_info "Found orphan packages:"
-    echo "$orphans" | while read -r pkg; do
+    for pkg in "${orphans[@]}"; do
         echo -e "    ${BC_COLOR_YELLOW}• $pkg${BC_COLOR_RESET}"
     done
-    
+
     _update_command "sudo pacman -Rns <packages>" "-R: remove packages | -n: remove config files | -s: remove dependencies"
-    if sudo pacman -Rns $orphans; then
+    if sudo pacman -Rns "${orphans[@]}"; then
         _update_success "Orphan packages removed"
         return 0
     else
