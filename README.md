@@ -19,18 +19,20 @@ bash-config/
 ├── bash_prompt         # Prompt appearance and toggles
 ├── bash_exports        # Shared environment settings
 ├── bash_tools          # Utility shell functions (e.g. mae, Git config setup)
+├── bash_update         # Cross-platform update system (update / cleanup / full-update)
 ├── install.sh          # Setup helper script
 ├── configs/
-│   ├── gitconfig_base      # Shared Git aliases and settings
-│   ├── gitconfig_diamond   # Diamond-specific Git config template
-│   └── gitconfig_frostpaw  # Frostpaw-specific Git config template
+│   ├── gitconfig_base          # Shared Git aliases and settings
+│   ├── gitconfig_diamond       # Diamond-specific Git config template
+│   ├── gitconfig_frostpaw      # Frostpaw-specific Git config template
+│   └── fastfetch_diamond.jsonc # Diamond fastfetch layout
 ├── secrets/
 │   ├── bash_secrets.sh         # Local-only, untracked file for credentials and paths
 │   ├── gitconfig_user_public   # Git user config for public account (untracked)
 │   └── gitconfig_user_private  # Git user config for private account (untracked)
 └── specialisations/
-    ├── bashrc_frostpaw # Home setup (Arch Linux, neofetch, yay updates)
-    └── bashrc_diamond  # Work setup (modules, SSH keys, hostname mapping)
+    ├── bashrc_frostpaw # Home setup (Arch Linux, modern CLI tools, yay/paru updates)
+    └── bashrc_diamond  # Work setup (modules, pixi, SSH, hostname mapping)
 ```
 
 ---
@@ -72,8 +74,8 @@ This will generate your `~/.gitconfig` with all aliases and settings. See [Git C
 The following specialisation values are supported:
 | Name | Description |
 | ---- | ----------- |
-| frostpaw | Home setup (Arch Linux, neofetch, yay updates) |
-| diamond | Work setup (modules, SSH keys, hostname mapping) |
+| frostpaw | Home setup (Arch Linux, modern CLI tools, yay/paru updates) |
+| diamond | Work setup (CUDA/CMake modules, pixi tools, SSH agent, hostname mapping) |
 
 Set the desired specialisation in `~/.bashrc`:
 ```bash
@@ -83,7 +85,52 @@ This variable is read by `bashrc_core` to load the correct specialisation file.
 
 ---
 
-## 🔑 Secrets 🔐
+## � Pixi Package Manager (Diamond)
+
+[Pixi](https://prefix.dev/docs/pixi) is used on Diamond systems to manage user-space CLI tools without requiring root, keeping everything on the science volume.
+
+### Configuration
+
+The Diamond specialisation automatically sets up pixi when `DIAMOND_USERNAME` is defined in `secrets/bash_secrets.sh`:
+
+```bash
+export PIXI_HOME="/dls/science/users/$DIAMOND_USERNAME/.pixi"
+export PIXI_CACHE_DIR="$PIXI_HOME/cache"
+# $PIXI_HOME/bin is added to PATH automatically if the directory exists
+```
+
+### Installing tools
+
+```bash
+pixi global install htop btop ripgrep fd bat eza fastfetch k9s tmux
+```
+
+### Modern CLI aliases
+
+The Diamond specialisation overrides several standard commands with modern alternatives installed via pixi:
+
+| Alias | Replaces | Tool | Description |
+| ----- | -------- | ---- | ----------- |
+| `ls` | `ls` | eza | Coloured listing with icons |
+| `ll` | — | eza | Long listing with Git status |
+| `lt` | — | eza | Tree view (2 levels) |
+| `cat` | `cat` | bat | Syntax-highlighted pager |
+| `grep` | `grep` | ripgrep | Fast regex search |
+| `find` | `find` | fd | Simpler, faster find |
+
+> **Note:** `find` and `grep` have different flag interfaces to their GNU equivalents. The aliases only apply interactively — scripts are unaffected.
+
+### Updates
+
+Pixi self-updates are handled by the `update` / `full-update` commands alongside system packages. Only the script-installed binary at `$PIXI_HOME/bin/pixi` is auto-updated; a system-managed pixi is left to the system package manager.
+
+### Diamond environment reference
+
+Run `diamond-help` (or `dh`) in any Diamond shell for a full command reference covering navigation, build aliases, diagnostics, and pixi tool details.
+
+---
+
+## �🔑 Secrets 🔐
 Sensitive values are stored in:
 ```bash
 bash-config/secrets/bash_secrets.sh
