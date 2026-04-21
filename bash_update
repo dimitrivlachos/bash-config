@@ -377,19 +377,21 @@ _cleanup_flatpak() {
 # ATUIN UPDATE FUNCTIONS
 # ==============================================================================
 _update_atuin() {
+    # Only self-update if installed via the official install script (~/.atuin/bin).
+    # Package-manager installs (/usr/bin etc.) are handled by the system updater.
+    if command -v atuin &>/dev/null; then
+        local atuin_path
+        atuin_path=$(command -v atuin)
+        if [[ "$atuin_path" != "$HOME/.atuin/bin/atuin" ]]; then
+            bc_log_debug "Atuin managed by system package manager (${atuin_path}) — skipping self-update"
+            return 0
+        fi
+    fi
+
     _update_section "🐚 Atuin - Shell History Manager"
 
     if ! command -v atuin &>/dev/null; then
         _update_skip "Atuin not installed"
-        return 0
-    fi
-
-    # Only self-update if installed via the official install script (~/.atuin/bin).
-    # Package-manager installs (/usr/bin etc.) are handled by the system updater.
-    local atuin_path
-    atuin_path=$(command -v atuin)
-    if [[ "$atuin_path" != "$HOME/.atuin/bin/atuin" ]]; then
-        _update_skip "Atuin managed by system package manager (${atuin_path})"
         return 0
     fi
 
