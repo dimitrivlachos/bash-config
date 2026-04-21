@@ -769,7 +769,7 @@ diamond-proxy() {
     echo "Configure FoxyProxy: SOCKS5 127.0.0.1:$port"
     echo "For Diamond intranet access, use patterns: *.diamond.ac.uk, *.diamond"
     echo "Press Ctrl+C to stop the proxy"
-    ssh -D "$port" -C -N diamond-proxy
+    ssh -D "$port" -C -N bastion
 }
 
 # List all active Diamond SSH connections
