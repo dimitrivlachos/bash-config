@@ -234,9 +234,9 @@ bc_ssh_workday_setup() {
     bc_setup_sk_ssh_handles
     echo
     
-    # 4. Start master connection to bastion
+    # 4. Start master connection to bastion (optional — not reachable from inside Diamond)
     bc_log_info "🏢 Starting bastion master connection..."
-    bc_ssh_master_start bastion
+    bc_ssh_master_start bastion || bc_log_warn "Could not reach bastion — skipping (normal when already on Diamond's internal network)"
     echo
 
     # 5. Show status
