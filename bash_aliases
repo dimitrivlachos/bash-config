@@ -13,8 +13,11 @@
 # Core System
 # ------------------------------------------------------------------------------
 
-# Alias's for modern cli tools if available (eza, bat, rg, fd)
-# Falls back to standard tools if not installed
+# Aliases for modern CLI tools when available.
+# Uses distro-specific fallback command names where needed:
+# - Ubuntu/Debian often ship bat as "batcat"
+# - Ubuntu/Debian often ship fd as "fdfind"
+# This keeps the interactive aliases portable without requiring local symlinks.
 if command -v eza &>/dev/null; then
     alias ls='eza'
     alias ll='eza -la --git'
@@ -24,9 +27,24 @@ else
     alias ll='ls -la --color=auto'
 fi
 
-command -v bat &>/dev/null && alias cat='bat --paging=never'
-command -v rg  &>/dev/null && alias grep='rg'
-command -v fd  &>/dev/null && alias find='fd'
+# Prefer upstream bat name, but support Ubuntu's batcat package name.
+if command -v bat &>/dev/null; then
+    alias cat='bat --paging=never'
+elif command -v batcat &>/dev/null; then
+    alias cat='batcat --paging=never'
+fi
+
+# ripgrep exposes the rg binary name consistently across distros.
+if command -v rg &>/dev/null; then
+    alias grep='rg'
+fi
+
+# Prefer upstream fd name, but support Ubuntu's fdfind package name.
+if command -v fd &>/dev/null; then
+    alias find='fd'
+elif command -v fdfind &>/dev/null; then
+    alias find='fdfind'
+fi
 
 # General shortcuts
 alias clear='\clear && ff'           # Clear screen and run fastfetch
