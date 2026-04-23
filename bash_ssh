@@ -66,6 +66,32 @@ bc_setup_ssh_config() {
 
     # Also set up SK SSH key handles
     bc_setup_sk_ssh_handles
+
+    # Symlink smart-proxy so ProxyCommands work from GUI apps (e.g. VS Code)
+    # that launch ssh without the full shell environment ($BASH_CONFIG_DIR unset)
+    bc_setup_smart_proxy
+}
+
+# Symlink ssh-smart-proxy.sh into ~/.ssh/smart-proxy so ssh_config can reference
+# it via %d/.ssh/smart-proxy — a path SSH expands itself, independent of $BASH_CONFIG_DIR
+bc_setup_smart_proxy() {
+    local ssh_dir="$HOME/.ssh"
+    local script="$BASH_CONFIG_DIR/scripts/ssh-smart-proxy.sh"
+    local target="$ssh_dir/smart-proxy"
+
+    if [[ ! -f "$script" ]]; then
+        bc_log_debug "Smart proxy script not found: $script"
+        return 0
+    fi
+
+    if [[ -L "$target" ]] && [[ "$(readlink "$target")" == "$script" ]]; then
+        bc_log_debug "Smart proxy already linked: ~/.ssh/smart-proxy"
+        return 0
+    fi
+
+    ln -sfn "$script" "$target"
+    chmod 755 "$script"
+    bc_log_success "Smart proxy symlinked: ~/.ssh/smart-proxy → scripts/ssh-smart-proxy.sh"
 }
 
 # Symlink YubiKey SK SSH key handles from secrets into ~/.ssh/
