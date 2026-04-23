@@ -89,11 +89,12 @@ else
     LAN_EXIT=$?
     debug "LAN tunnel exit code: $LAN_EXIT"
     [[ $LAN_EXIT -eq 0 ]] && exit 0
-    # LogLevel=VERBOSE surfaces the inner ssh's connection status to /dev/tty.
     # Tailscale pre-banner auth URLs ("# To authenticate, visit: ...") flow
     # through the -W data channel and are shown by the outer SSH (requires
-    # LogLevel VERBOSE in ssh_config for the host).
-    debug "Fallback tunnel: ssh -o LogLevel=VERBOSE -W $TARGET_HOST:$TARGET_PORT $FALLBACK_HOST"
+    # LogLevel VERBOSE in ssh_config for the host alias, e.g. asteria/spark).
+    # The inner SSH does NOT need VERBOSE for this — it's purely tunnelling raw
+    # data and its own debug output only adds noise to /dev/tty via 2>&3.
+    debug "Fallback tunnel: ssh -o LogLevel=ERROR -W $TARGET_HOST:$TARGET_PORT $FALLBACK_HOST"
     status "Connecting via fallback ($FALLBACK_HOST)..."
-    exec ssh -o LogLevel=VERBOSE -W "$TARGET_HOST:$TARGET_PORT" "$FALLBACK_HOST" 2>&3 3>&-
+    exec ssh -o LogLevel=ERROR -W "$TARGET_HOST:$TARGET_PORT" "$FALLBACK_HOST" 2>/dev/null
 fi
