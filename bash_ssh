@@ -180,7 +180,7 @@ bc_ssh_master_start() {
     
     bc_log_debug "Attempting to start master connection to: $host"
     bc_log_info "Starting master connection to $host..."
-    if ssh -MNf "$host"; then
+    if ssh -MNf -o LogLevel=ERROR "$host"; then
         bc_log_success "Master connection to $host started"
         return 0
     else
