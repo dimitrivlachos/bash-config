@@ -45,6 +45,8 @@ bc_setup_ssh_config() {
     # Check if already correctly configured
     if bc_check_ssh_config silent >/dev/null 2>&1; then
         bc_log_info "SSH config already correctly configured"
+        # Still ensure smart-proxy symlink exists even if config is already set up
+        bc_setup_smart_proxy
         return 0
     fi
     
@@ -73,7 +75,8 @@ bc_setup_ssh_config() {
 }
 
 # Symlink ssh-smart-proxy.sh into ~/.ssh/smart-proxy so ssh_config can reference
-# it via %d/.ssh/smart-proxy — a path SSH expands itself, independent of $BASH_CONFIG_DIR
+# it via $HOME/.ssh/smart-proxy — available even from GUI apps (e.g. VS Code)
+# that launch ssh without the full shell environment ($BASH_CONFIG_DIR unset)
 bc_setup_smart_proxy() {
     local ssh_dir="$HOME/.ssh"
     local script="$BASH_CONFIG_DIR/scripts/ssh-smart-proxy.sh"
@@ -283,9 +286,10 @@ bc_ssh_workday_setup() {
     fi
     echo
 
-    # 3. Ensure SK SSH key handles are symlinked
+    # 3. Ensure SK SSH key handles and smart-proxy are symlinked
     bc_log_info "🔑 Checking YubiKey SK key handles..."
     bc_setup_sk_ssh_handles
+    bc_setup_smart_proxy
     echo
     
     # 4. Start master connection to bastion (optional — not reachable from inside Diamond)
