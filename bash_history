@@ -37,13 +37,11 @@ fi
 # Resolution order: system package → $HOME install → repo submodule.
 # No-ops silently if already loaded (i.e. __bp_preexec_invoke_exec is defined).
 bc_source_bash_preexec() {
-  # __bp_interactive_mode in PROMPT_COMMAND is the definitive sign that
-  # bash-preexec ran its __bp_install step and wired its hooks correctly.
-  # Checking only for the function definition is unreliable — atuin's init
-  # bash output stubs __bp_preexec_invoke_exec internally without installing
-  # the PROMPT_COMMAND hooks, which would cause a false "already loaded" exit.
-  if [[ "${PROMPT_COMMAND:-}" == *"__bp_interactive_mode"* ]]; then
-    bc_log_debug "bash-preexec: already loaded (hooks in PROMPT_COMMAND)"
+  # bash_preexec_imported is bash-preexec's own dedup guard, reliable across all
+  # bash versions.  In bash 5.1+, PROMPT_COMMAND is an array and $PROMPT_COMMAND
+  # only expands element [0], so __bp_interactive_mode (element [1]) is invisible.
+  if [[ -n "${bash_preexec_imported:-}" ]]; then
+    bc_log_debug "bash-preexec: already loaded (bash_preexec_imported is set)"
     return 0
   fi
 
@@ -143,9 +141,10 @@ bc_setup_atuin_config() {
 # Check whether bash-preexec is installed and loaded.
 # Without it, atuin's precmd/preexec hooks are never called and history is not recorded.
 bc_check_bash_preexec() {
-  # __bp_interactive_mode in PROMPT_COMMAND is the definitive sign that
-  # bash-preexec completed its __bp_install step and the hooks are active.
-  if [[ "${PROMPT_COMMAND:-}" == *"__bp_interactive_mode"* ]]; then
+  # bash_preexec_imported is bash-preexec's own dedup guard, reliable across all
+  # bash versions.  In bash 5.1+, PROMPT_COMMAND is an array and $PROMPT_COMMAND
+  # only expands element [0], so __bp_interactive_mode (element [1]) is invisible.
+  if [[ -n "${bash_preexec_imported:-}" ]]; then
     bc_log_success "bash-preexec is loaded in this session"
     return 0
   fi
