@@ -39,4 +39,4 @@ export CMAKE_GENERATOR="${CMAKE_GENERATOR:-Ninja}"
 
 # Point atuin at the repo-managed config directory instead of symlinking
 # into ~/.config/atuin/.  Atuin reads $ATUIN_CONFIG_DIR/config.toml.
-export ATUIN_CONFIG_DIR="$BASH_CONFIG_DIR/configs/atuin"
+export ATUIN_CONFIG_DIR="$BASH_CONFIG_DIR/configs/atuin/atuin_homelab"

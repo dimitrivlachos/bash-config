@@ -151,6 +151,31 @@ check_vscode_links() {
 export FASTFETCH_CONFIG="$BASH_CONFIG_DIR/configs/fastfetch_diamond.jsonc"
 
 # ------------------------------------------------------------------------------
+# Atuin Configuration
+# ------------------------------------------------------------------------------
+
+# --- Atuin: ephemeral local db on Diamond ---
+# NFS home + multiple machines = SQLite corruption risk.
+# Use XDG_RUNTIME_DIR (per-user tmpfs, survives across SSH sessions on the
+# same machine, cleaned up on last logout). Atuin server is the source of
+# truth; local db is just a cache that gets repopulated on first sync.
+_atuin_local="${XDG_RUNTIME_DIR:-/tmp/.atuin-$USER}"
+mkdir -p "$_atuin_local" && chmod 700 "$_atuin_local"
+export ATUIN_DB_PATH="$_atuin_local/history.db"
+unset _atuin_local
+
+# Background sync on first shell of the session (populates empty local db)
+if [[ -f "$ATUIN_DB_PATH" ]]; then
+    # DB exists from a previous shell on this machine — no action needed
+    :
+else
+    (atuin sync &>/dev/null &)
+fi
+
+# Point at Diamond-specific atuin config (different sync_address)
+export ATUIN_CONFIG_DIR="$BASH_CONFIG_DIR/configs/atuin/atuin_diamond"
+
+# ------------------------------------------------------------------------------
 # Diamond-Specific Aliases
 # ------------------------------------------------------------------------------
 alias cdu='cd "$DIAMOND_WORK_DIR"'
