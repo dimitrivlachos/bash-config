@@ -3,7 +3,7 @@
 ## https://atuin.sh/docs/config
 
 # k8s argus sync server
-sync_address = "http://172.23.169.55"
+sync_address = "http://172.23.169.55:8888"
 
 # Don't override up-arrow — keep standard bash navigation
 # Ctrl+R is still bound to atuin search

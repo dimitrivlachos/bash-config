@@ -162,6 +162,7 @@ export FASTFETCH_CONFIG="$BASH_CONFIG_DIR/configs/fastfetch_diamond.jsonc"
 _atuin_local="${XDG_RUNTIME_DIR:-/tmp/.atuin-$USER}"
 mkdir -p "$_atuin_local" && chmod 700 "$_atuin_local"
 export ATUIN_DB_PATH="$_atuin_local/history.db"
+export ATUIN_RECORD_STORE_PATH="$_atuin_local/record.db"  # redirect secrets/records store off NFS
 unset _atuin_local
 
 # Background sync on first shell of the session (populates empty local db)
