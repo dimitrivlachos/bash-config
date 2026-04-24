@@ -33,6 +33,37 @@ else
   bc_log_debug "History: atuin not found — using custom sync"
 fi
 
+# Source bash-preexec, which atuin requires to register its preexec/precmd hooks.
+# Resolution order: system package → $HOME install → repo submodule.
+# No-ops silently if already loaded (i.e. __bp_preexec_invoke_exec is defined).
+bc_source_bash_preexec() {
+  # Already loaded — nothing to do
+  if declare -f __bp_preexec_invoke_exec >/dev/null 2>&1; then
+    bc_log_debug "bash-preexec: already loaded"
+    return 0
+  fi
+
+  local candidates=(
+    "/usr/share/bash-preexec/bash-preexec.sh"   # Arch / Debian package
+    "$HOME/.bash-preexec.sh"                     # Manual curl install
+    "${BASH_CONFIG_DIR:-}/bash-preexec/bash-preexec.sh"  # Repo submodule
+  )
+
+  local f
+  for f in "${candidates[@]}"; do
+    if [[ -f "$f" ]]; then
+      # shellcheck source=/dev/null
+      source "$f"
+      bc_log_debug "bash-preexec: sourced from $f"
+      return 0
+    fi
+  done
+
+  bc_log_warn "bash-preexec not found — atuin hooks will not be registered"
+  bc_log_info "Run: git submodule update --init  (inside $BASH_CONFIG_DIR)"
+  return 1
+}
+
 # Wire atuin (or the custom fallback) into PROMPT_COMMAND.
 # Called by bashrc_core *after* PROMPT_COMMAND="set_prompt" so each backend
 # can safely append without clobbering the prompt function.
@@ -40,6 +71,9 @@ fi
 #   atuin absent:   set_prompt → history -a; history -c; history -r
 bc_history_init() {
   if [[ "${BC_ATUIN_ACTIVE:-0}" == "1" ]]; then
+    # bash-preexec must be sourced before atuin init so that atuin's
+    # preexec/precmd hooks are registered into the bp arrays correctly.
+    bc_source_bash_preexec
     eval "$(atuin init bash --disable-up-arrow)"
     # Passive append keeps HISTFILE as a human-readable fallback
     PROMPT_COMMAND="${PROMPT_COMMAND:+${PROMPT_COMMAND}$'\n'}history -a"
@@ -117,6 +151,8 @@ bc_check_bash_preexec() {
     found_at="/usr/share/bash-preexec/bash-preexec.sh"
   elif [[ -f "$HOME/.bash-preexec.sh" ]]; then
     found_at="$HOME/.bash-preexec.sh"
+  elif [[ -f "${BASH_CONFIG_DIR:-}/bash-preexec/bash-preexec.sh" ]]; then
+    found_at="$BASH_CONFIG_DIR/bash-preexec/bash-preexec.sh"
   fi
 
   if [[ -n "$found_at" ]]; then
@@ -127,10 +163,11 @@ bc_check_bash_preexec() {
 
   bc_log_error "bash-preexec is not installed"
   bc_log_info "atuin will not record command history (timing, exit codes) without it"
-  bc_log_info "Install with:"
+  bc_log_info "The repo submodule should cover this automatically — check that it is initialised:"
+  bc_log_info "  git submodule update --init  (inside $BASH_CONFIG_DIR)"
+  bc_log_info "Or install via package manager:"
   bc_log_info "  Arch:          sudo pacman -S bash-preexec"
   bc_log_info "  Ubuntu/Debian: sudo apt install bash-preexec"
-  bc_log_info "  RHEL/other:    curl -fsSL https://raw.githubusercontent.com/rcaloras/bash-preexec/master/bash-preexec.sh -o ~/.bash-preexec.sh"
   return 1
 }
 
