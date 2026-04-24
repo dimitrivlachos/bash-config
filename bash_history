@@ -163,11 +163,8 @@ bc_check_bash_preexec() {
 
   bc_log_error "bash-preexec is not installed"
   bc_log_info "atuin will not record command history (timing, exit codes) without it"
-  bc_log_info "The repo submodule should cover this automatically — check that it is initialised:"
+  bc_log_info "Ensure the repo submodule is initialised:"
   bc_log_info "  git submodule update --init  (inside $BASH_CONFIG_DIR)"
-  bc_log_info "Or install via package manager:"
-  bc_log_info "  Arch:          sudo pacman -S bash-preexec"
-  bc_log_info "  Ubuntu/Debian: sudo apt install bash-preexec"
   return 1
 }
 
