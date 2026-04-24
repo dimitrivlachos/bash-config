@@ -37,9 +37,13 @@ fi
 # Resolution order: system package → $HOME install → repo submodule.
 # No-ops silently if already loaded (i.e. __bp_preexec_invoke_exec is defined).
 bc_source_bash_preexec() {
-  # Already loaded — nothing to do
-  if declare -f __bp_preexec_invoke_exec >/dev/null 2>&1; then
-    bc_log_debug "bash-preexec: already loaded"
+  # __bp_interactive_mode in PROMPT_COMMAND is the definitive sign that
+  # bash-preexec ran its __bp_install step and wired its hooks correctly.
+  # Checking only for the function definition is unreliable — atuin's init
+  # bash output stubs __bp_preexec_invoke_exec internally without installing
+  # the PROMPT_COMMAND hooks, which would cause a false "already loaded" exit.
+  if [[ "${PROMPT_COMMAND:-}" == *"__bp_interactive_mode"* ]]; then
+    bc_log_debug "bash-preexec: already loaded (hooks in PROMPT_COMMAND)"
     return 0
   fi
 
@@ -139,8 +143,9 @@ bc_setup_atuin_config() {
 # Check whether bash-preexec is installed and loaded.
 # Without it, atuin's precmd/preexec hooks are never called and history is not recorded.
 bc_check_bash_preexec() {
-  # Check if it's sourced in the current session (the definitive test)
-  if declare -f __bp_preexec_invoke_exec >/dev/null 2>&1; then
+  # __bp_interactive_mode in PROMPT_COMMAND is the definitive sign that
+  # bash-preexec completed its __bp_install step and the hooks are active.
+  if [[ "${PROMPT_COMMAND:-}" == *"__bp_interactive_mode"* ]]; then
     bc_log_success "bash-preexec is loaded in this session"
     return 0
   fi

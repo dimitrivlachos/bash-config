@@ -105,16 +105,11 @@ set_prompt
 PROMPT_COMMAND="set_prompt"
 
 # Load bash-preexec so atuin's precmd/preexec hooks are active.
-# Check package-manager install path first, then curl/manual install path.
-for __bc_preexec_path in \
-    /usr/share/bash-preexec/bash-preexec.sh \
-    "$HOME/.bash-preexec.sh"; do
-  if [[ -f "$__bc_preexec_path" ]]; then
-    source "$__bc_preexec_path"
-    break
-  fi
-done
-unset __bc_preexec_path
+# Delegates to bc_source_bash_preexec (defined in bash_history) which checks
+# system package paths, $HOME install, and the repo submodule in order.
+if declare -f bc_source_bash_preexec >/dev/null 2>&1; then
+  bc_source_bash_preexec
+fi
 
 if declare -f bc_history_init >/dev/null 2>&1; then
   bc_history_init
