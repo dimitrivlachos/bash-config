@@ -30,6 +30,20 @@ export CMAKE_GENERATOR="${CMAKE_GENERATOR:-Ninja}"
 [[ ":$PATH:" != *":$HOME/.local/bin:"* ]] && export PATH="$HOME/.local/bin:$PATH"
 
 # ------------------------------------------------------------------------------
+# Pixi package manager
+# ------------------------------------------------------------------------------
+# DIAMOND_USERNAME (set in bash_secrets.sh) shifts the install root to the
+# science volume; everywhere else the standard ~/.pixi location is used.
+if [[ -n "${DIAMOND_USERNAME:-}" ]]; then
+  export PIXI_HOME="/dls/science/users/$DIAMOND_USERNAME/.pixi"
+else
+  export PIXI_HOME="${PIXI_HOME:-$HOME/.pixi}"
+fi
+export PIXI_CACHE_DIR="$PIXI_HOME/cache"
+[[ ":$PATH:" != *":$PIXI_HOME/bin:"* ]] && [[ -d "$PIXI_HOME/bin" ]] && \
+  export PATH="$PIXI_HOME/bin:$PATH"
+
+# ------------------------------------------------------------------------------
 # Atuin (shell history sync)
 # ------------------------------------------------------------------------------
 # Must be sourced here (before bash_history) so that `command -v atuin` in

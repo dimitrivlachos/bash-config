@@ -40,11 +40,8 @@ module load cmake/"$CMAKE_VERSION"
 # ------------------------------------------------------------------------------
 # Pixi Configuration
 # ------------------------------------------------------------------------------
-if [[ -n "${DIAMOND_USERNAME:-}" ]]; then
-  export PIXI_HOME="/dls/science/users/$DIAMOND_USERNAME/.pixi"
-  export PIXI_CACHE_DIR="$PIXI_HOME/cache"
-  [[ -d "$PIXI_HOME/bin" ]] && export PATH="$PIXI_HOME/bin:$PATH"
-fi
+# PIXI_HOME and PATH are set in bash_exports (runs before bash_history) using
+# DIAMOND_USERNAME from bash_secrets.sh — no action needed here.
 
 # ------------------------------------------------------------------------------
 # SSH Setup (interactive shells only)

@@ -44,6 +44,24 @@ bc_history_init() {
     # Passive append keeps HISTFILE as a human-readable fallback
     PROMPT_COMMAND="${PROMPT_COMMAND:+${PROMPT_COMMAND}$'\n'}history -a"
     bc_log_debug "History PROMPT_COMMAND: atuin + passive HISTFILE append"
+    # Override fallback functions with atuin redirect stubs.  Must be installed
+    # here (inside bc_history_init, called after all fallback functions are
+    # defined) so the stubs are not overwritten by the fallback definitions.
+    _bc_atuin_redirect() {
+      bc_log_warn "'$1' is disabled — atuin is the active history backend."
+      bc_log_info "Use: atuin search  |  atuin history list  |  atuin sync"
+    }
+    hgrep()             { _bc_atuin_redirect "hg"; }
+    recent_history()    { _bc_atuin_redirect "hr"; }
+    hr_formatted()      { _bc_atuin_redirect "hrf"; }
+    clean_history()     { _bc_atuin_redirect "hc"; }
+    bc_history_stats()  { _bc_atuin_redirect "hstats"; }
+    bc_history_search() { _bc_atuin_redirect "hsearch"; }
+    bc_backup_history() { _bc_atuin_redirect "hbackup"; }
+    bc_import_history() { _bc_atuin_redirect "himport"; }
+    hhelp()             { _bc_atuin_redirect "hhelp"; }
+    hquick()            { _bc_atuin_redirect "hquick"; }
+    sync_history()      { atuin sync; }
   else
     # Fallback: full cross-session sync via HISTFILE
     PROMPT_COMMAND="${PROMPT_COMMAND:+${PROMPT_COMMAND}$'\n'}history -a; history -c; history -r"
@@ -204,27 +222,7 @@ bc_verify_atuin() {
   esac
 }
 
-# When atuin is active, replace custom history functions with stubs that
-# redirect to the equivalent atuin commands.  HISTFILE is still maintained as
-# a passive text backup (via history -a), so it remains intact if atuin ever
-# becomes unavailable and the fallback needs to take over.
-if [[ "${BC_ATUIN_ACTIVE:-0}" == "1" ]]; then
-  _bc_atuin_redirect() {
-    bc_log_warn "'$1' is disabled — atuin is the active history backend."
-    bc_log_info "Use: atuin search  |  atuin history list  |  atuin sync"
-  }
-  hgrep()             { _bc_atuin_redirect "hg"; }
-  recent_history()    { _bc_atuin_redirect "hr"; }
-  hr_formatted()      { _bc_atuin_redirect "hrf"; }
-  clean_history()     { _bc_atuin_redirect "hc"; }
-  bc_history_stats()  { _bc_atuin_redirect "hstats"; }
-  bc_history_search() { _bc_atuin_redirect "hsearch"; }
-  bc_backup_history() { _bc_atuin_redirect "hbackup"; }
-  bc_import_history() { _bc_atuin_redirect "himport"; }
-  hhelp()             { _bc_atuin_redirect "hhelp"; }
-  hquick()            { _bc_atuin_redirect "hquick"; }
-  sync_history()      { atuin sync; }  # hs → atuin sync
-fi
+
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
