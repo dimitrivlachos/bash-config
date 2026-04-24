@@ -1,29 +1,57 @@
 ## Atuin configuration
 ## Managed by bash-config — loaded via ATUIN_CONFIG_DIR (set in bash_exports)
-## https://atuin.sh/docs/config
+## https://docs.atuin.sh/cli/configuration/config/
 
 # k8s argus sync server
 sync_address = "http://172.23.169.55:8888"
+
+# Date format for `atuin stats`
+dialect = "uk"
 
 # Don't override up-arrow — keep standard bash navigation
 # Ctrl+R is still bound to atuin search
 up_arrow_history = false
 
-# Sync after each session, every 5 minutes
+# Sync after each session, every minute
 auto_sync = true
-# sync_frequency = "5m" # Conservative sync frequency
-sync_frequency = "1m" # Aggressive sync frequency
+sync_frequency = "1m"
 
-# Use the daemon's in-memory index for faster fuzzy search (requires daemon below)
+# Use the daemon's in-memory index for fast fuzzy search
 search_mode = "daemon-fuzzy"
 
-# AI-powered natural language search — requires Atuin's cloud AI backend.
-# Not supported by self-hosted servers, so this has no effect here.
-# [ai]
+# Default filter: search across all machines
+# Toggle with Ctrl+R during search (cycles: global → host → session → directory)
+filter_mode = "global"
+
+# When pressing enter in the TUI, execute immediately
+# (press Tab instead to edit before executing)
+#enter_accept = true
+
+# Don't record commands containing secrets (AWS keys, tokens, etc.)
+#secrets_filter = true
+
+# Don't record failed commands — useful if you mistype a lot and
+# don't want noise in search. Set to true if you want to keep them.
+# store_failed = true
+
+# Show host column — useful since you're syncing across multiple Diamond machines
+[ui]
+columns = ["duration", "time", "host", "command"]
+
+# Sync v2 — faster incremental sync protocol
+[sync]
+records = true
+
+# Sync shell aliases across machines
+# [dotfiles]
 # enabled = true
 
+# Background daemon — maintains in-memory search index, handles sync
 [daemon]
-# Background process that maintains an in-memory search index and handles sync.
-# autostart spawns it automatically on shell init — no systemd unit needed.
 enabled = true
 autostart = true
+
+# Filter commands matching these patterns from history entirely
+# history_filter = [
+#   "^secret-cmd",
+# ]

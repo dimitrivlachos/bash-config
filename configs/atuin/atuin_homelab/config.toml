@@ -1,9 +1,12 @@
 ## Atuin configuration
 ## Managed by bash-config — loaded via ATUIN_CONFIG_DIR (set in bash_exports)
-## https://atuin.sh/docs/config
+## https://docs.atuin.sh/cli/configuration/config/
 
 # Self-hosted sync server
 sync_address = "https://atuin.lan"
+
+# Date format for `atuin stats`
+dialect = "uk"
 
 # Don't override up-arrow — keep standard bash navigation
 # Ctrl+R is still bound to atuin search
@@ -16,6 +19,22 @@ sync_frequency = "1m" # Aggressive sync frequency
 
 # Use the daemon's in-memory index for faster fuzzy search (requires daemon below)
 search_mode = "daemon-fuzzy"
+
+# Default filter: search across all machines
+# Toggle with Ctrl+R during search (cycles: global → host → session → directory)
+filter_mode = "global"
+
+# When pressing enter in the TUI, execute immediately
+# (press Tab instead to edit before executing)
+# enter_accept = true
+
+# Show host column — useful when syncing across multiple machines
+[ui]
+columns = ["duration", "time", "host", "command"]
+
+# Sync v2 — faster incremental sync protocol
+[sync]
+records = true
 
 # AI-powered natural language search — requires Atuin's cloud AI backend.
 # Not supported by self-hosted servers, so this has no effect here.
