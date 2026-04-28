@@ -6,7 +6,7 @@
 #
 # Features:
 #   - Status messages written to /dev/tty (bypasses ssh's fd handling)
-#   - Tailscale auth messages visible via LogLevel VERBOSE on the inner SSH
+#   - Tailscale auth messages surfaced via LogLevel=INFO + stderr→/dev/tty
 #   - ConnectTimeout for LAN probe (avoids killing working LAN tunnels)
 #
 # Usage (in ssh_config):
@@ -89,12 +89,11 @@ else
     LAN_EXIT=$?
     debug "LAN tunnel exit code: $LAN_EXIT"
     [[ $LAN_EXIT -eq 0 ]] && exit 0
-    # Tailscale pre-banner auth URLs ("# To authenticate, visit: ...") flow
-    # through the -W data channel and are shown by the outer SSH (requires
-    # LogLevel VERBOSE in ssh_config for the host alias, e.g. asteria/spark).
-    # The inner SSH does NOT need VERBOSE for this — it's purely tunnelling raw
-    # data and its own debug output only adds noise to /dev/tty via 2>&3.
-    debug "Fallback tunnel: ssh -o LogLevel=ERROR -W $TARGET_HOST:$TARGET_PORT $FALLBACK_HOST"
+    # Tailscale pre-auth banners ("# To authenticate, visit: ...") are printed
+    # by the inner SSH client to its own stderr at INFO level — they do NOT
+    # flow through the -W data channel. Redirect stderr to /dev/tty (fd 3) and
+    # use LogLevel=INFO so banners are visible without verbose debug noise.
+    debug "Fallback tunnel: ssh -o LogLevel=INFO -W $TARGET_HOST:$TARGET_PORT $FALLBACK_HOST"
     status "Connecting via fallback ($FALLBACK_HOST)..."
-    exec ssh -o LogLevel=ERROR -W "$TARGET_HOST:$TARGET_PORT" "$FALLBACK_HOST" 2>/dev/null
+    exec ssh -o LogLevel=INFO -W "$TARGET_HOST:$TARGET_PORT" "$FALLBACK_HOST" 2>&3
 fi

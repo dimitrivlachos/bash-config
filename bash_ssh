@@ -209,7 +209,7 @@ bc_ssh_master_start() {
     
     bc_log_debug "Attempting to start master connection to: $host"
     bc_log_info "Starting master connection to $host..."
-    if ssh -MNf -o LogLevel=ERROR "$host"; then
+    if ssh -MNf -o LogLevel=ERROR "$host" </dev/null 2>/dev/null; then # Detach from terminal, run in background, suppress output
         bc_log_success "Master connection to $host started"
         return 0
     else
@@ -808,7 +808,7 @@ diamond-proxy() {
     fi
 
     bc_log_info "Starting SOCKS proxy on port $port..."
-    ssh -D "$port" -C -N -q bastion &
+    ssh -D "$port" -C -N -q bastion </dev/null >/dev/null 2>&1 & # Detach from terminal, run in background
     local proxy_pid=$!
     disown "$proxy_pid"
     echo "$proxy_pid" > "$pid_file"
