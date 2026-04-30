@@ -27,8 +27,8 @@ bc_check_updates() {
   local original_dir="$PWD"
   cd "$BASH_CONFIG_DIR" || return 1
 
-  if ! git fetch origin main --quiet 2>/dev/null; then
-    [[ "$check_mode" == "verbose" ]] && bc_log_warn "Failed to fetch updates (network issue?)"
+  if ! timeout 5 git fetch origin main --quiet 2>/dev/null; then
+    [[ "$check_mode" == "verbose" ]] && bc_log_warn "Failed to fetch updates (network issue or timeout)"
     cd "$original_dir"
     return 1
   fi
@@ -71,8 +71,8 @@ bc_update_config() {
   cd "$BASH_CONFIG_DIR" || return 1
 
   bc_log_info "Fetching latest changes..."
-  if ! git fetch origin main --quiet 2>/dev/null; then
-    bc_log_error "Failed to fetch updates (network issue?)"
+  if ! timeout 15 git fetch origin main --quiet 2>/dev/null; then
+    bc_log_error "Failed to fetch updates (network issue or timeout)"
     cd "$original_dir"
     return 1
   fi
