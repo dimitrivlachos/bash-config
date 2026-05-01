@@ -68,7 +68,7 @@ function Uninstall-GitConfig {
     $cleaned = [regex]::Replace($content, $pattern, "`n")
     $cleaned = $cleaned.TrimEnd() + "`n"
 
-    Set-Content $GitConfigPath -Value $cleaned -NoNewline
+    [System.IO.File]::WriteAllText($GitConfigPath, $cleaned, [System.Text.UTF8Encoding]::new($false))
 
     # If the file is now effectively empty, remove it
     $remaining = (Get-Content $GitConfigPath -Raw).Trim()

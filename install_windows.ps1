@@ -167,9 +167,10 @@ function Install-GitConfig {
             # Check if content actually changed by comparing what we'd write
             $withBlock = $updated.TrimEnd() + "`n" + $newBlock
 
-            # Re-read to compare
+            # Re-read to compare (ignore the generated timestamp line)
             $currentBlock = [regex]::Match($existing, $pattern).Value
-            if ($currentBlock.Trim() -eq ($newBlock.Trim())) {
+            $stripTimestamp = { param($s) ($s -split "`r?`n" | Where-Object { $_ -notmatch '# !! Specialisation:' }) -join "`n" }
+            if ((& $stripTimestamp $currentBlock).Trim() -eq (& $stripTimestamp $newBlock).Trim()) {
                 Write-Ok "Git config already up to date for '$Spec'"
                 return $true
             }
@@ -184,7 +185,7 @@ function Install-GitConfig {
             Copy-Item $GitConfigPath $backup
             Write-Status "Backed up existing .gitconfig to $backup"
 
-            Set-Content $GitConfigPath -Value $withBlock -NoNewline
+            [System.IO.File]::WriteAllText($GitConfigPath, $withBlock, [System.Text.UTF8Encoding]::new($false))
             Write-Ok "Updated managed block in .gitconfig"
             return $true
         }
@@ -199,7 +200,7 @@ function Install-GitConfig {
         Copy-Item $GitConfigPath $backup
         Write-Status "Backed up existing .gitconfig to $backup"
 
-        Add-Content $GitConfigPath -Value $newBlock
+        [System.IO.File]::AppendAllText($GitConfigPath, $newBlock, [System.Text.UTF8Encoding]::new($false))
         Write-Ok "Appended managed block to .gitconfig"
         return $true
     }
@@ -210,7 +211,7 @@ function Install-GitConfig {
         return $true
     }
 
-    Set-Content $GitConfigPath -Value $newBlock -NoNewline
+    [System.IO.File]::WriteAllText($GitConfigPath, $newBlock, [System.Text.UTF8Encoding]::new($false))
     Write-Ok "Created .gitconfig with managed block"
     return $true
 }
