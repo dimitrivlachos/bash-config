@@ -98,6 +98,16 @@ if [[ ! -f "$CONFIG_REPO/configs/tmux/plugins/catppuccin/tmux/catppuccin.tmux" ]
 else
   echo "[INFO] catppuccin/tmux submodule present"
 fi
+if [[ ! -f "$CONFIG_REPO/configs/tmux/plugins/tmux-plugins/tmux-cpu/cpu.tmux" ]]; then
+  echo "[WARN] tmux-cpu submodule not initialised — cpu/ram status modules will not show"
+else
+  echo "[INFO] tmux-cpu submodule present"
+fi
+if [[ ! -f "$CONFIG_REPO/configs/tmux/plugins/tmux-plugins/tmux-battery/battery.tmux" ]]; then
+  echo "[WARN] tmux-battery submodule not initialised — battery status module will not show"
+else
+  echo "[INFO] tmux-battery submodule present"
+fi
 
 # ==============================================================================
 # POST-INSTALL SETUP WIZARD
