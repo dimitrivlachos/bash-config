@@ -87,6 +87,19 @@ else
 fi
 
 # ==============================================================================
+# TMUX INSTALLATION
+# ==============================================================================
+# The catppuccin/tmux theme is bundled as a git submodule under
+# configs/tmux/plugins/catppuccin/tmux; the run path in tmux.conf resolves
+# via the ~/.config/tmux symlink created by the installer.
+if [[ ! -f "$CONFIG_REPO/configs/tmux/plugins/catppuccin/tmux/catppuccin.tmux" ]]; then
+  echo "[WARN] catppuccin/tmux submodule not initialised — theme will not load"
+  echo "       Run: git submodule update --init  (inside $CONFIG_REPO)"
+else
+  echo "[INFO] catppuccin/tmux submodule present"
+fi
+
+# ==============================================================================
 # POST-INSTALL SETUP WIZARD
 # ==============================================================================
 # Source only the specific modules needed for the wizard rather than the full
@@ -113,9 +126,10 @@ _bc_run_setup_steps() {
   echo "  [1] Set up Git configuration  (generate ~/.gitconfig)"
   echo "  [2] Set up SSH configuration  (link config + SK key handles)"
   echo "  [3] Validate installation     (bc_validate_config)"
+  echo "  [4] Set up tmux               (symlink ~/.config/tmux)"
   if [[ "$SPECIALISATION" == "frostpaw" ]]; then
-  echo "  [4] Set up certificates       (install Caddy root CA)"
-  echo "  [5] Set up atuin              (verify config + connectivity)"
+  echo "  [5] Set up certificates       (install Caddy root CA)"
+  echo "  [6] Set up atuin              (verify config + connectivity)"
   fi
   echo "  [0] Skip — I will set up manually later"
   echo ""
@@ -156,12 +170,25 @@ _bc_run_setup_steps() {
         ;;
       4)
         echo ""
+        echo "[INFO] Symlinking ~/.config/tmux -> $CONFIG_REPO/configs/tmux"
+        if [[ -e "$HOME/.config/tmux" && ! -L "$HOME/.config/tmux" ]]; then
+          echo "[WARN] $HOME/.config/tmux exists and is not a symlink — skipping to avoid data loss"
+          echo "       Back it up manually, then re-run this step."
+        else
+          mkdir -p "$HOME/.config"
+          ln -sf "$CONFIG_REPO/configs/tmux" "$HOME/.config/tmux"
+          echo "[INFO] Done — reload tmux with: tmux source ~/.config/tmux/tmux.conf"
+          did_anything=true
+        fi
+        ;;
+      5)
+        echo ""
         echo "[INFO] Installing CA certificates..."
         if bc_setup_certs; then
           did_anything=true
         fi
         ;;
-      5)
+      6)
         echo ""
         echo "[INFO] Setting up atuin config..."
         bc_setup_atuin_config || true
