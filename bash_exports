@@ -28,6 +28,13 @@ export CMAKE_GENERATOR="${CMAKE_GENERATOR:-Ninja}"
 # ------------------------------------------------------------------------------
 # Guard against duplicate entries when opening multiple terminals (each sources this file)
 [[ ":$PATH:" != *":$HOME/.local/bin:"* ]] && export PATH="$HOME/.local/bin:$PATH"
+# On Diamond, $HOME is a network home distinct from the science volume; prepend the
+# science-volume .local/bin so user-installed binaries (e.g. tmux) take precedence.
+if [[ -n "${DIAMOND_USERNAME:-}" ]]; then
+  _dls_local="/dls/science/users/$DIAMOND_USERNAME/.local/bin"
+  [[ ":$PATH:" != *":$_dls_local:"* ]] && [[ -d "$_dls_local" ]] && export PATH="$_dls_local:$PATH"
+  unset _dls_local
+fi
 
 # ------------------------------------------------------------------------------
 # Pixi package manager
