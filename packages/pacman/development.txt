@@ -1,0 +1,5 @@
+# Development tools
+ninja
+opencode
+rpi-imager
+kicad

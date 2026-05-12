@@ -1,0 +1,3 @@
+# Gaming and game streaming
+steam
+moonlight-qt

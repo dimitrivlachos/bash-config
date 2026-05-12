@@ -1,0 +1,10 @@
+# Flatpak applications
+com.discordapp.Discord
+com.rtosta.zapzap
+com.slack.Slack
+com.spotify.Client
+im.riot.Riot
+md.obsidian.Obsidian
+org.onlyoffice.desktopeditors
+org.telegram.desktop
+us.zoom.Zoom

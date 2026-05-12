@@ -119,6 +119,8 @@ _bc_install_source_config() {
   export BASH_SPECIALISATION="$SPECIALISATION"
   export BASH_CONFIG_DIR="$CONFIG_REPO"
   # shellcheck source=/dev/null
+  source "$CONFIG_REPO/bash_logging" 2>/dev/null || true   # BC_COLOR_* constants
+  # shellcheck source=/dev/null
   source "$CONFIG_REPO/bash_tools"   2>/dev/null || true   # bc_log_*, bc_setup_git_config, bc_validate_config
   # shellcheck source=/dev/null
   source "$CONFIG_REPO/bash_certs"   2>/dev/null || true   # bc_setup_certs, bc_check_certs
@@ -126,6 +128,10 @@ _bc_install_source_config() {
   source "$CONFIG_REPO/bash_history" 2>/dev/null || true   # bc_setup_atuin_config, bc_verify_atuin
   # shellcheck source=/dev/null
   source "$CONFIG_REPO/bash_ssh"     2>/dev/null || true   # bc_setup_ssh_config, bc_setup_sk_ssh_handles
+  # shellcheck source=/dev/null
+  source "$CONFIG_REPO/bash_update"  2>/dev/null || true   # _detect_aur_helper (needed by bash_packages)
+  # shellcheck source=/dev/null
+  source "$CONFIG_REPO/bash_packages" 2>/dev/null || true  # pkg_check, pkg_install
 }
 
 _bc_run_setup_steps() {
@@ -141,6 +147,7 @@ _bc_run_setup_steps() {
   echo "  [5] Set up certificates       (install Caddy root CA)"
   echo "  [6] Set up atuin              (verify config + connectivity)"
   fi
+  echo "  [7] Check/install packages    (pkg_check / pkg_install)"
   echo "  [0] Skip — I will set up manually later"
   echo ""
 
@@ -205,6 +212,17 @@ _bc_run_setup_steps() {
         echo ""
         echo "[INFO] Verifying atuin connectivity..."
         bc_verify_atuin || true
+        did_anything=true
+        ;;
+      7)
+        echo ""
+        echo "[INFO] Checking installed packages against lists..."
+        pkg_check
+        echo ""
+        read -rp "Install missing packages now? [y/N] " install_choice </dev/tty || install_choice="n"
+        if [[ "${install_choice,,}" == "y" ]]; then
+          pkg_install
+        fi
         did_anything=true
         ;;
       0)

@@ -1,0 +1,8 @@
+# Modern CLI tool replacements
+bat
+eza
+fd
+fastfetch
+htop
+btop
+nvtop

@@ -1,0 +1,8 @@
+# Printing, hardware security, and peripheral support
+cups
+cups-filters
+ghostscript
+system-config-printer
+libfido2
+yubikey-manager
+smartmontools

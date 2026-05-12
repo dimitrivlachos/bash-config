@@ -1,0 +1,4 @@
+# Media players and editors
+mpv
+vlc
+gimp

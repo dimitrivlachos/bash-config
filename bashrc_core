@@ -14,8 +14,10 @@
 #   6. bash_tools               - Utility functions
 #   7. bash_ssh                 - SSH management
 #   8. bash_history             - History management
-#   9. bash_config_update       - bash-config repo self-update (bc_check_updates, bc_update_config)
-#  10. specialisations/bashrc_* - Machine-specific configuration
+#   9. bash_update              - Cross-platform update commands
+#  10. bash_packages            - Package list auditing (pkg_check, pkg_install)
+#  11. bash_config_update       - bash-config repo self-update (bc_check_updates, bc_update_config)
+#  12. specialisations/bashrc_* - Machine-specific configuration
 #
 # Environment Variables:
 #   BASH_SPECIALISATION  - Set in ~/.bashrc to select specialisation
@@ -71,6 +73,7 @@ bc_source_if_exists "$BASH_CONFIG_DIR/bash_certs" "Certificate management"
 bc_source_if_exists "$BASH_CONFIG_DIR/bash_ssh" "SSH management"
 bc_source_if_exists "$BASH_CONFIG_DIR/bash_history" "History management"
 bc_source_if_exists "$BASH_CONFIG_DIR/bash_update" "Update utilities"
+bc_source_if_exists "$BASH_CONFIG_DIR/bash_packages" "Package list management"
 bc_source_if_exists "$BASH_CONFIG_DIR/bash_config_update" "Config self-update"
 bc_source_if_exists "$BASH_CONFIG_DIR/bash_project" "Project workspace management"
 

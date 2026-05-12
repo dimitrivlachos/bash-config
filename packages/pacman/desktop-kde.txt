@@ -1,0 +1,15 @@
+# KDE Plasma desktop environment and applications
+plasma-meta
+plasma-workspace
+dolphin
+ark
+kate
+gwenview
+konsole
+kdeconnect
+alacritty
+firefox
+xdg-utils
+xorg-xinit
+gst-plugin-pipewire
+libpulse
