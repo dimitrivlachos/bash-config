@@ -1,0 +1,4 @@
+{
+  "steam":        { "pacman": "steam",        "apt": "steam-installer", "dnf": "steam" },
+  "moonlight-qt": { "pacman": "moonlight-qt", "apt": "moonlight-qt",    "dnf": "moonlight-qt" }
+}

@@ -1,4 +1,0 @@
-# Fonts
-otf-firamono-nerd
-ttf-firacode-nerd
-ttf-liberation

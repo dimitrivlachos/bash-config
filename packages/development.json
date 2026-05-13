@@ -1,0 +1,18 @@
+{
+  "ninja":             { "pacman": "ninja",      "apt": "ninja-build", "dnf": "ninja-build" },
+  "opencode":          { "pacman": "opencode",   "apt": null,          "dnf": null,
+                         "_note": "On apt/dnf, install from https://github.com/opencode-ai/opencode releases" },
+  "rpi-imager":        { "pacman": "rpi-imager", "apt": "rpi-imager",  "dnf": "rpi-imager" },
+  "kicad":             { "pacman": "kicad",      "apt": "kicad",       "dnf": "kicad" },
+  "python-pip":        { "pacman": "python-pip", "apt": "python3-pip", "dnf": "python3-pip" },
+  "python-venv":       { "pacman": null,         "apt": "python3-venv","dnf": "python3-virtualenv",
+                         "_note": "Bundled with python on Arch" },
+  "docker-compose":    { "pacman": "docker-compose", "apt": "docker-compose-plugin", "dnf": "docker-compose-plugin",
+                         "_note": "apt/dnf: requires docker.com's official repo configured first" },
+  "docker-buildx":     { "pacman": "docker-buildx", "apt": "docker-buildx-plugin",  "dnf": "docker-buildx-plugin",
+                         "_note": "apt/dnf: requires docker.com's official repo configured first" },
+  "vscode":            { "pacman": null,         "aur": "visual-studio-code-bin", "apt": "code", "dnf": "code",
+                         "_note": "apt/dnf: requires Microsoft's official repo configured first" },
+  "micromamba":        { "pacman": null,         "aur": "micromamba", "apt": null, "dnf": null,
+                         "_note": "On apt/dnf, install via mamba-org install script" }
+}

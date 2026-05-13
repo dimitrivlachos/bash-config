@@ -1,0 +1,9 @@
+{
+  "fira-mono-nerd": { "pacman": "otf-firamono-nerd", "apt": null,            "dnf": null,
+                      "_note": "Nerd Fonts: install from https://www.nerdfonts.com on apt/dnf" },
+  "fira-code-nerd": { "pacman": "ttf-firacode-nerd", "apt": null,            "dnf": null,
+                      "_note": "Nerd Fonts: install from https://www.nerdfonts.com on apt/dnf" },
+  "fira-code":      { "pacman": null,                "apt": "fonts-firacode","dnf": "fira-code-fonts" },
+  "liberation":     { "pacman": "ttf-liberation",    "apt": "fonts-liberation","dnf": "liberation-fonts" },
+  "jetbrains-mono": { "pacman": "ttf-jetbrains-mono","apt": "fonts-jetbrains-mono","dnf": "jetbrains-mono-fonts" }
+}

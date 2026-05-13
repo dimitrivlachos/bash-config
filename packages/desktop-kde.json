@@ -1,0 +1,18 @@
+{
+  "plasma-meta":      { "pacman": "plasma-meta",       "apt": null,                    "dnf": "@kde-desktop",
+                        "_note": "On Kubuntu, KDE is already installed via kubuntu-desktop" },
+  "plasma-workspace": { "pacman": "plasma-workspace",  "apt": null,                    "dnf": null },
+  "dolphin":          { "pacman": "dolphin",           "apt": "dolphin",               "dnf": "dolphin" },
+  "ark":              { "pacman": "ark",               "apt": "ark",                   "dnf": "ark" },
+  "kate":             { "pacman": "kate",              "apt": "kate",                  "dnf": "kate" },
+  "gwenview":         { "pacman": "gwenview",          "apt": "gwenview",              "dnf": "gwenview" },
+  "konsole":          { "pacman": "konsole",           "apt": "konsole",               "dnf": "konsole" },
+  "kdeconnect":       { "pacman": "kdeconnect",        "apt": "kdeconnect",            "dnf": "kdeconnect" },
+  "spectacle":        { "pacman": "spectacle",         "apt": "kde-spectacle",         "dnf": "spectacle" },
+  "alacritty":        { "pacman": "alacritty",         "apt": "alacritty",             "dnf": "alacritty" },
+  "firefox":          { "pacman": "firefox",           "apt": "firefox",               "dnf": "firefox" },
+  "xdg-utils":        { "pacman": "xdg-utils",         "apt": "xdg-utils",             "dnf": "xdg-utils" },
+  "xinit":            { "pacman": "xorg-xinit",        "apt": "xinit",                 "dnf": "xorg-x11-xinit" },
+  "pipewire-gst":     { "pacman": "gst-plugin-pipewire","apt": "gstreamer1.0-pipewire","dnf": "pipewire-gstreamer" },
+  "libpulse":         { "pacman": "libpulse",          "apt": "libpulse0",             "dnf": "pulseaudio-libs" }
+}

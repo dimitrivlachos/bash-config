@@ -1,0 +1,14 @@
+{
+  "discord":    { "flatpak": "com.discordapp.Discord" },
+  "vesktop":    { "flatpak": "dev.vencord.Vesktop",
+                  "_note": "Privacy-focused Discord client; alternative to com.discordapp.Discord" },
+  "hdfview":    { "flatpak": "org.hdfgroup.HDFView" },
+  "zapzap":     { "flatpak": "com.rtosta.zapzap" },
+  "slack":      { "flatpak": "com.slack.Slack" },
+  "spotify":    { "flatpak": "com.spotify.Client" },
+  "element":    { "flatpak": "im.riot.Riot" },
+  "obsidian":   { "flatpak": "md.obsidian.Obsidian" },
+  "onlyoffice": { "flatpak": "org.onlyoffice.desktopeditors" },
+  "telegram":   { "flatpak": "org.telegram.desktop" },
+  "zoom":       { "flatpak": "us.zoom.Zoom" }
+}

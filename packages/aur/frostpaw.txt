@@ -1,4 +1,0 @@
-# AUR packages specific to Frostpaw (home Arch machine)
-protonup-qt
-ttf-aptos
-ttf-aptos-fontconfig-fix

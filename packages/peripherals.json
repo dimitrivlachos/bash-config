@@ -1,0 +1,9 @@
+{
+  "cups":            { "pacman": "cups",                 "apt": "cups",                 "dnf": "cups" },
+  "cups-filters":    { "pacman": "cups-filters",         "apt": "cups-filters",         "dnf": "cups-filters" },
+  "ghostscript":     { "pacman": "ghostscript",          "apt": "ghostscript",          "dnf": "ghostscript" },
+  "printer-config":  { "pacman": "system-config-printer","apt": "system-config-printer","dnf": "system-config-printer" },
+  "libfido2":        { "pacman": "libfido2",             "apt": "libfido2-1",           "dnf": "libfido2" },
+  "yubikey-manager": { "pacman": "yubikey-manager",      "apt": "yubikey-manager",      "dnf": "yubikey-manager" },
+  "smartmontools":   { "pacman": "smartmontools",        "apt": "smartmontools",        "dnf": "smartmontools" }
+}

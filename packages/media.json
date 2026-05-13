@@ -1,0 +1,5 @@
+{
+  "mpv":  { "pacman": "mpv",  "apt": "mpv",  "dnf": "mpv" },
+  "vlc":  { "pacman": "vlc",  "apt": "vlc",  "dnf": "vlc" },
+  "gimp": { "pacman": "gimp", "apt": "gimp", "dnf": "gimp" }
+}

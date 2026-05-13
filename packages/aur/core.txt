@@ -1,4 +1,0 @@
-# AUR packages for any machine
-yay
-visual-studio-code-bin
-micromamba

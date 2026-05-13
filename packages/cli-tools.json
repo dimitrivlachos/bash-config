@@ -1,0 +1,13 @@
+{
+  "bat":       { "pacman": "bat",       "apt": "bat",       "dnf": "bat",
+                 "_note": "On apt, binary is `batcat`" },
+  "eza":       { "pacman": "eza",       "apt": "eza",       "dnf": "eza",
+                 "_note": "apt: Ubuntu 24.04+ only" },
+  "fd":        { "pacman": "fd",        "apt": "fd-find",   "dnf": "fd-find",
+                 "_note": "On apt, binary is `fdfind`" },
+  "fastfetch": { "pacman": "fastfetch", "apt": "fastfetch", "dnf": "fastfetch" },
+  "htop":      { "pacman": "htop",      "apt": "htop",      "dnf": "htop" },
+  "btop":      { "pacman": "btop",      "apt": "btop",      "dnf": "btop" },
+  "nvtop":     { "pacman": "nvtop",     "apt": "nvtop",     "dnf": "nvtop" },
+  "ripgrep":   { "pacman": "ripgrep",   "apt": "ripgrep",   "dnf": "ripgrep" }
+}

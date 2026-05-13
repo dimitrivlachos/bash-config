@@ -2,189 +2,212 @@
 # ==============================================================================
 # PACKAGE LIST MANAGEMENT
 # ==============================================================================
-# Curated package lists for auditing and bootstrapping machines.
-# Lists live in packages/{pacman,aur,flatpak}/*.txt — one package per line,
-# lines starting with '#' are comments.
+# Curated package lists for auditing and bootstrapping machines across distros.
+#
+# Lists live in packages/*.json — one file per category. Each entry maps a
+# logical name to per-installer package names. Use null for installers where
+# the package is unavailable.
+#
+#   packages/core.json:
+#     {
+#       "netcat": { "pacman": "openbsd-netcat", "apt": "netcat-openbsd",
+#                   "dnf": "nmap-ncat" },
+#       "atuin":  { "pacman": "atuin", "apt": null, "dnf": null,
+#                   "_note": "Install via setup.atuin.sh on apt/dnf" }
+#     }
+#
+# Supported installer keys: pacman, apt, dnf, aur, flatpak.
+# Per-entry resolution picks the first applicable installer in this priority:
+#   native (pacman/apt/dnf) > aur (only on pacman+helper) > flatpak (if installed)
+#
+# Files named system-<spec>.json only load when BASH_SPECIALISATION matches.
 #
 # Commands:
 #   pkg_check [category...]   - Show packages from lists that are not installed
 #   pkg_install [category...] - Install missing packages from lists
-#
-# Categories (pacman):  core, cli-tools, desktop-kde, fonts, development,
-#                       gaming, media, peripherals, system-frostpaw
-# Categories (aur):     core, frostpaw
-# Categories (flatpak): apps
-#
-# Without arguments, pkg_check/pkg_install use all lists appropriate for the
-# current specialisation (system-frostpaw and aur/frostpaw are skipped unless
-# BASH_SPECIALISATION=frostpaw).
 # ==============================================================================
 
+_pkg_list_dir() { echo "$BASH_CONFIG_DIR/packages"; }
+
 # ------------------------------------------------------------------------------
-# Internal helpers
+# Manager detection and per-installer operations
+# ------------------------------------------------------------------------------
+_pkg_native_manager() {
+    case "$(_detect_os 2>/dev/null)" in
+        arch)            echo "pacman" ;;
+        debian|raspbian) echo "apt" ;;
+        rhel)            echo "dnf" ;;
+        *)               echo "" ;;
+    esac
+}
+
+_pkg_installed_pacman()  { pacman -Qqe 2>/dev/null; }
+_pkg_installed_apt()     { dpkg-query -W -f='${Package}\n' 2>/dev/null; }
+_pkg_installed_dnf()     { rpm -qa --qf '%{NAME}\n' 2>/dev/null; }
+_pkg_installed_flatpak() { flatpak list --app --columns=application 2>/dev/null; }
+_pkg_installed_aur() {
+    local helper; helper=$(_detect_aur_helper 2>/dev/null)
+    [[ -n "$helper" ]] && "$helper" -Qqm 2>/dev/null
+}
+
+_pkg_install_pacman()  { sudo pacman -S --needed "$@"; }
+_pkg_install_apt()     { sudo apt-get install -y "$@"; }
+_pkg_install_dnf()     { sudo dnf install -y "$@"; }
+_pkg_install_flatpak() { flatpak install -y "$@"; }
+_pkg_install_aur() {
+    local helper; helper=$(_detect_aur_helper 2>/dev/null)
+    if [[ -z "$helper" ]]; then
+        echo -e "${BC_COLOR_RED}  ✗ No AUR helper found (yay/paru)${BC_COLOR_RESET}"
+        return 1
+    fi
+    "$helper" -S --needed "$@"
+}
+
+# Installer priority list for this machine, one name per line.
+_pkg_priority() {
+    local native; native=$(_pkg_native_manager)
+    [[ -n "$native" ]] && echo "$native"
+    [[ "$native" == "pacman" ]] && [[ -n "$(_detect_aur_helper 2>/dev/null)" ]] && echo "aur"
+    command -v flatpak &>/dev/null && echo "flatpak"
+}
+
+# ------------------------------------------------------------------------------
+# JSON list discovery and resolution
 # ------------------------------------------------------------------------------
 
-_pkg_list_dir() {
-    echo "$BASH_CONFIG_DIR/packages"
+# Specialisation gating by filename.
+_pkg_spec_allows() {
+    local base; base=$(basename "$1" .json)
+    case "$base" in
+        system-*) [[ "${base#system-}" == "${BASH_SPECIALISATION:-}" ]] ;;
+        *)        return 0 ;;
+    esac
 }
 
-# Read a package list file, stripping comments and blank lines
-_pkg_read_list() {
-    local file="$1"
-    [[ -f "$file" ]] || return
-    grep -v '^\s*#' "$file" | grep -v '^\s*$'
-}
-
-# Build the set of pacman list files to use
-_pkg_pacman_files() {
-    local dir
-    dir="$(_pkg_list_dir)/pacman"
-    local -a files=(
-        "$dir/core.txt"
-        "$dir/cli-tools.txt"
-        "$dir/desktop-kde.txt"
-        "$dir/fonts.txt"
-        "$dir/development.txt"
-        "$dir/gaming.txt"
-        "$dir/media.txt"
-        "$dir/peripherals.txt"
-    )
-    [[ "${BASH_SPECIALISATION:-}" == "frostpaw" ]] && files+=("$dir/system-frostpaw.txt")
-    printf '%s\n' "${files[@]}"
-}
-
-# Build the set of AUR list files to use
-_pkg_aur_files() {
-    local dir
-    dir="$(_pkg_list_dir)/aur"
-    local -a files=("$dir/core.txt")
-    [[ "${BASH_SPECIALISATION:-}" == "frostpaw" ]] && files+=("$dir/frostpaw.txt")
-    printf '%s\n' "${files[@]}"
-}
-
-# Build the set of flatpak list files to use
-_pkg_flatpak_files() {
-    echo "$(_pkg_list_dir)/flatpak/apps.txt"
-}
-
-# Resolve category argument to a file path; prints path or empty if unknown
-_pkg_category_to_files() {
-    local manager="$1" category="$2"
-    local dir
-    dir="$(_pkg_list_dir)/$manager"
-    local file="$dir/${category}.txt"
-    [[ -f "$file" ]] && echo "$file"
-}
-
-# Filter a list of wanted packages down to those not present in installed set
-_pkg_missing() {
-    local installed_list="$1"
-    shift
-    local pkg
-    while read -r pkg; do
-        grep -qxF "$pkg" "$installed_list" || echo "$pkg"
+# Print every packages/*.json that passes specialisation gating.
+_pkg_active_files() {
+    local dir; dir=$(_pkg_list_dir)
+    [[ -d "$dir" ]] || return
+    local f
+    for f in "$dir"/*.json; do
+        [[ -f "$f" ]] || continue
+        _pkg_spec_allows "$f" && echo "$f"
     done
 }
 
-# Pretty label from file path: packages/pacman/core.txt → pacman/core
-_pkg_label() {
+# Resolve a category name (e.g. "core") to its JSON file, or empty.
+_pkg_category_file() {
+    local file="$(_pkg_list_dir)/$1.json"
+    [[ -f "$file" ]] && _pkg_spec_allows "$file" && echo "$file"
+}
+
+# For a JSON file, emit "installer<TAB>logical<TAB>pkgname" for every entry,
+# choosing the first applicable installer per entry from _pkg_priority.
+# Entries with no applicable installer are skipped.
+_pkg_resolve_file() {
     local file="$1"
-    local base
-    base=$(basename "$file" .txt)
-    local parent
-    parent=$(basename "$(dirname "$file")")
-    echo "$parent/$base"
+    local pri_json
+    pri_json=$(_pkg_priority | jq -R . | jq -s .)
+    [[ "$pri_json" == "[]" ]] && return
+
+    jq -r --argjson pri "$pri_json" '
+        to_entries[] as $e
+        | ($pri | map(select($e.value[.] != null)) | first) as $i
+        | if $i then "\($i)\t\($e.key)\t\($e.value[$i])" else empty end
+    ' "$file"
 }
 
 # ------------------------------------------------------------------------------
 # Public commands
 # ------------------------------------------------------------------------------
 
+_pkg_require_jq() {
+    if ! command -v jq &>/dev/null; then
+        echo -e "${BC_COLOR_RED}  ✗ jq is required — install it first (see packages/core.json).${BC_COLOR_RESET}"
+        return 1
+    fi
+}
+
 pkg_check() {
+    _pkg_require_jq || return 1
     local -a args=("$@")
     local any_missing=0
 
-    _pkg_header() {
-        local width
-        width=$(tput cols 2>/dev/null || echo 80)
-        [[ $width -gt 100 ]] && width=100
-        local line
-        line=$(printf '─%.0s' $(seq 1 "$width"))
-        echo -e "\n${BC_COLOR_BOLD}${BC_COLOR_CYAN}  Package Audit${BC_COLOR_RESET}"
-        echo -e "${BC_COLOR_CYAN}${line}${BC_COLOR_RESET}"
+    local width; width=$(tput cols 2>/dev/null || echo 80)
+    [[ $width -gt 100 ]] && width=100
+    local line; line=$(printf '─%.0s' $(seq 1 "$width"))
+    echo -e "\n${BC_COLOR_BOLD}${BC_COLOR_CYAN}  Package Audit${BC_COLOR_RESET}"
+    echo -e "${BC_COLOR_CYAN}${line}${BC_COLOR_RESET}"
+
+    local native; native=$(_pkg_native_manager)
+    if [[ -z "$native" ]]; then
+        echo -e "${BC_COLOR_YELLOW}  ⚠ No supported native package manager detected.${BC_COLOR_RESET}"
+        return 1
+    fi
+    echo -e "  Native manager: ${BC_COLOR_BOLD}$native${BC_COLOR_RESET}${BASH_SPECIALISATION:+  (spec: $BASH_SPECIALISATION)}"
+
+    # Cache the installed set per installer.
+    declare -A installed_file=()
+    local cleanup=""
+    _get_installed_file() {
+        local mgr="$1"
+        if [[ -z "${installed_file[$mgr]:-}" ]]; then
+            local tmp; tmp=$(mktemp)
+            cleanup="$cleanup $tmp"
+            "_pkg_installed_$mgr" > "$tmp" 2>/dev/null
+            installed_file[$mgr]="$tmp"
+        fi
+        echo "${installed_file[$mgr]}"
     }
 
-    _pkg_header
+    _check_one_file() {
+        local file="$1"
+        local label; label=$(basename "$file" .json)
+        local resolved; resolved=$(_pkg_resolve_file "$file")
+        if [[ -z "$resolved" ]]; then
+            echo -e "${BC_COLOR_BLUE}  ◦ $label — nothing applies on this system${BC_COLOR_RESET}"
+            return
+        fi
 
-    # Gather installed sets once
-    local tmp_pacman tmp_aur tmp_flatpak
-    tmp_pacman=$(mktemp)
-    tmp_aur=$(mktemp)
-    tmp_flatpak=$(mktemp)
-    trap "rm -f $tmp_pacman $tmp_aur $tmp_flatpak" RETURN
+        local -a missing=()
+        local mgr logical pkg inst
+        while IFS=$'\t' read -r mgr logical pkg; do
+            [[ -z "$mgr" ]] && continue
+            inst=$(_get_installed_file "$mgr")
+            grep -qxF "$pkg" "$inst" || missing+=("$logical ${BC_COLOR_BLUE}[$mgr:$pkg]${BC_COLOR_RESET}")
+        done <<< "$resolved"
 
-    pacman -Qqe 2>/dev/null > "$tmp_pacman"
-
-    local aur_helper
-    aur_helper=$(_detect_aur_helper 2>/dev/null || echo "")
-    if [[ -n "$aur_helper" ]]; then
-        "$aur_helper" -Qqm 2>/dev/null > "$tmp_aur"
-    fi
-
-    if command -v flatpak &>/dev/null; then
-        flatpak list --app --columns=application 2>/dev/null > "$tmp_flatpak"
-    fi
-
-    _check_files() {
-        local manager="$1"
-        local installed_tmp="$2"
-        shift 2
-        local -a files=("$@")
-        local file label missing
-        for file in "${files[@]}"; do
-            [[ -f "$file" ]] || continue
-            label=$(_pkg_label "$file")
-            missing=$(_pkg_read_list "$file" | _pkg_missing "$installed_tmp")
-            if [[ -n "$missing" ]]; then
-                echo -e "\n${BC_COLOR_YELLOW}  ⚠ Missing from ${BC_COLOR_BOLD}$label${BC_COLOR_RESET}${BC_COLOR_YELLOW}:${BC_COLOR_RESET}"
-                while IFS= read -r pkg; do
-                    echo -e "${BC_COLOR_RED}    ✗ $pkg${BC_COLOR_RESET}"
-                done <<< "$missing"
-                any_missing=1
-            else
-                echo -e "${BC_COLOR_GREEN}  ✓ $label — all present${BC_COLOR_RESET}"
-            fi
-        done
-    }
-
-    if [[ ${#args[@]} -eq 0 ]]; then
-        # Default: check all appropriate lists
-        mapfile -t pacman_files < <(_pkg_pacman_files)
-        mapfile -t aur_files < <(_pkg_aur_files)
-        mapfile -t flatpak_files < <(_pkg_flatpak_files)
-        _check_files pacman "$tmp_pacman" "${pacman_files[@]}"
-        [[ -n "$aur_helper" ]] && _check_files aur "$tmp_aur" "${aur_files[@]}"
-        command -v flatpak &>/dev/null && _check_files flatpak "$tmp_flatpak" "${flatpak_files[@]}"
-    else
-        # User specified categories
-        local arg file
-        for arg in "${args[@]}"; do
-            # Try each manager in order
-            local found=0
-            for manager in pacman aur flatpak; do
-                file=$(_pkg_category_to_files "$manager" "$arg")
-                if [[ -n "$file" ]]; then
-                    case "$manager" in
-                        pacman)   _check_files pacman "$tmp_pacman" "$file" ;;
-                        aur)      _check_files aur "$tmp_aur" "$file" ;;
-                        flatpak)  _check_files flatpak "$tmp_flatpak" "$file" ;;
-                    esac
-                    found=1
-                fi
+        if [[ ${#missing[@]} -gt 0 ]]; then
+            echo -e "\n${BC_COLOR_YELLOW}  ⚠ Missing from ${BC_COLOR_BOLD}$label${BC_COLOR_RESET}${BC_COLOR_YELLOW}:${BC_COLOR_RESET}"
+            local m
+            for m in "${missing[@]}"; do
+                echo -e "${BC_COLOR_RED}    ✗ $m${BC_COLOR_RESET}"
             done
-            [[ $found -eq 0 ]] && echo -e "${BC_COLOR_YELLOW}  ⚠ Unknown category: $arg${BC_COLOR_RESET}"
+            any_missing=1
+        else
+            echo -e "${BC_COLOR_GREEN}  ✓ $label — all present${BC_COLOR_RESET}"
+        fi
+    }
+
+    local file
+    if [[ ${#args[@]} -eq 0 ]]; then
+        while IFS= read -r file; do
+            _check_one_file "$file"
+        done < <(_pkg_active_files)
+    else
+        local arg
+        for arg in "${args[@]}"; do
+            file=$(_pkg_category_file "$arg")
+            if [[ -z "$file" ]]; then
+                echo -e "${BC_COLOR_YELLOW}  ⚠ Unknown category: $arg${BC_COLOR_RESET}"
+                continue
+            fi
+            _check_one_file "$file"
         done
     fi
+
+    # shellcheck disable=SC2086
+    [[ -n "$cleanup" ]] && rm -f $cleanup
 
     echo ""
     if [[ $any_missing -eq 1 ]]; then
@@ -195,73 +218,58 @@ pkg_check() {
 }
 
 pkg_install() {
+    _pkg_require_jq || return 1
     local -a args=("$@")
 
-    local aur_helper
-    aur_helper=$(_detect_aur_helper 2>/dev/null || echo "")
+    local native; native=$(_pkg_native_manager)
+    if [[ -z "$native" ]]; then
+        echo -e "${BC_COLOR_YELLOW}  ⚠ No supported native package manager detected.${BC_COLOR_RESET}"
+        return 1
+    fi
 
-    _install_from_file() {
-        local manager="$1"
-        local file="$2"
-        [[ -f "$file" ]] || return
-        local label
-        label=$(_pkg_label "$file")
+    _install_one_file() {
+        local file="$1"
+        local label; label=$(basename "$file" .json)
+        local resolved; resolved=$(_pkg_resolve_file "$file")
+        [[ -z "$resolved" ]] && return
 
-        local tmp_installed
-        tmp_installed=$(mktemp)
-        trap "rm -f $tmp_installed" RETURN
+        # Group missing packages by installer.
+        declare -A by_installer=()
+        local mgr logical pkg tmp
+        while IFS=$'\t' read -r mgr logical pkg; do
+            [[ -z "$mgr" ]] && continue
+            tmp=$(mktemp)
+            "_pkg_installed_$mgr" > "$tmp" 2>/dev/null
+            if ! grep -qxF "$pkg" "$tmp"; then
+                by_installer[$mgr]+="$pkg "
+            fi
+            rm -f "$tmp"
+        done <<< "$resolved"
 
-        case "$manager" in
-            pacman)  pacman -Qqe 2>/dev/null > "$tmp_installed" ;;
-            aur)     [[ -n "$aur_helper" ]] && "$aur_helper" -Qqm 2>/dev/null > "$tmp_installed" ;;
-            flatpak) flatpak list --app --columns=application 2>/dev/null > "$tmp_installed" ;;
-        esac
-
-        local -a missing=()
-        mapfile -t missing < <(_pkg_read_list "$file" | _pkg_missing "$tmp_installed")
-
-        if [[ ${#missing[@]} -eq 0 ]]; then
+        if [[ ${#by_installer[@]} -eq 0 ]]; then
             echo -e "${BC_COLOR_GREEN}  ✓ $label — nothing to install${BC_COLOR_RESET}"
             return
         fi
 
-        echo -e "\n${BC_COLOR_BLUE}  ▶ Installing from $label${BC_COLOR_RESET}"
-        case "$manager" in
-            pacman)
-                sudo pacman -S --needed "${missing[@]}"
-                ;;
-            aur)
-                if [[ -n "$aur_helper" ]]; then
-                    "$aur_helper" -S --needed "${missing[@]}"
-                else
-                    echo -e "${BC_COLOR_RED}  ✗ No AUR helper found (yay/paru)${BC_COLOR_RESET}"
-                fi
-                ;;
-            flatpak)
-                flatpak install -y "${missing[@]}"
-                ;;
-        esac
+        for mgr in "${!by_installer[@]}"; do
+            local -a pkgs=(${by_installer[$mgr]})
+            echo -e "\n${BC_COLOR_BLUE}  ▶ Installing from $label via $mgr${BC_COLOR_RESET}"
+            "_pkg_install_$mgr" "${pkgs[@]}"
+        done
     }
 
+    local file
     if [[ ${#args[@]} -eq 0 ]]; then
-        mapfile -t pacman_files < <(_pkg_pacman_files)
-        mapfile -t aur_files < <(_pkg_aur_files)
-        mapfile -t flatpak_files < <(_pkg_flatpak_files)
-        for f in "${pacman_files[@]}"; do _install_from_file pacman "$f"; done
-        [[ -n "$aur_helper" ]] && for f in "${aur_files[@]}"; do _install_from_file aur "$f"; done
-        command -v flatpak &>/dev/null && for f in "${flatpak_files[@]}"; do _install_from_file flatpak "$f"; done
+        while IFS= read -r file; do _install_one_file "$file"; done < <(_pkg_active_files)
     else
-        local arg file manager
+        local arg
         for arg in "${args[@]}"; do
-            local found=0
-            for manager in pacman aur flatpak; do
-                file=$(_pkg_category_to_files "$manager" "$arg")
-                if [[ -n "$file" ]]; then
-                    _install_from_file "$manager" "$file"
-                    found=1
-                fi
-            done
-            [[ $found -eq 0 ]] && echo -e "${BC_COLOR_YELLOW}  ⚠ Unknown category: $arg${BC_COLOR_RESET}"
+            file=$(_pkg_category_file "$arg")
+            if [[ -z "$file" ]]; then
+                echo -e "${BC_COLOR_YELLOW}  ⚠ Unknown category: $arg${BC_COLOR_RESET}"
+                continue
+            fi
+            _install_one_file "$file"
         done
     fi
 }
