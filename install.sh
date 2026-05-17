@@ -119,7 +119,9 @@ _bc_install_source_config() {
   export BASH_SPECIALISATION="$SPECIALISATION"
   export BASH_CONFIG_DIR="$CONFIG_REPO"
   # shellcheck source=/dev/null
-  source "$CONFIG_REPO/bash_tools"   2>/dev/null || true   # bc_log_*, bc_setup_git_config, bc_validate_config
+  source "$CONFIG_REPO/bash_logging" 2>/dev/null || true   # bc_log_*, BC_COLOR_*
+  # shellcheck source=/dev/null
+  source "$CONFIG_REPO/bash_tools"   2>/dev/null || true   # bc_setup_git_config, bc_validate_config
   # shellcheck source=/dev/null
   source "$CONFIG_REPO/bash_certs"   2>/dev/null || true   # bc_setup_certs, bc_check_certs
   # shellcheck source=/dev/null
