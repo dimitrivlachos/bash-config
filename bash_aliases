@@ -34,16 +34,14 @@ elif command -v batcat &>/dev/null; then
     alias cat='batcat --paging=never'
 fi
 
-# ripgrep exposes the rg binary name consistently across distros.
-if command -v rg &>/dev/null; then
-    alias grep='rg'
-fi
+# Note: ripgrep (rg) is intentionally NOT aliased to grep. It is not a drop-in
+# replacement (e.g. -E means --encoding, it recurses by default, and respects
+# .gitignore), which silently breaks scripts and pipelines expecting real grep.
 
-# Prefer upstream fd name, but support Ubuntu's fdfind package name.
-if command -v fd &>/dev/null; then
-    alias find='fd'
-elif command -v fdfind &>/dev/null; then
-    alias find='fdfind'
+# fd is NOT a drop-in for find (no -L/-iname/-exec syntax), so keep
+# the real find and just normalise fd's name across distros.
+if command -v fdfind &>/dev/null && ! command -v fd &>/dev/null; then
+    alias fd='fdfind'
 fi
 
 # General shortcuts
