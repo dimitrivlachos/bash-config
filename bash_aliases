@@ -44,6 +44,43 @@ if command -v fdfind &>/dev/null && ! command -v fd &>/dev/null; then
     alias fd='fdfind'
 fi
 
+# Wrap grep/find to print an occasional one-line hint toward rg/fd, while still
+# running the real binary. Behaviour is unchanged for scripts and pipelines.
+#
+# unalias first, on its own line: aliases expand at parse time, so the stock
+# `grep --color=auto` alias would break the grep() definition below. Splitting
+# the statement clears the alias before the function block is parsed.
+unalias grep find 2>/dev/null
+
+# Hint at most once per 12h per tool, tracked by mtime in a cache file. A shell
+# variable won't work: piped `... | grep` runs the function in a subshell, so
+# the guard wouldn't persist. Builtins only, to avoid recursing into grep/find.
+_search_nudge() {  # $1 = cache key, $2 = message
+    [[ $- == *i* && -z $NO_SEARCH_NUDGE ]] || return 0
+    local f="${XDG_CACHE_HOME:-$HOME/.cache}/search-nudge-$1" now last
+    printf -v now '%(%s)T' -1
+    last=$(<"$f") 2>/dev/null
+    (( now - ${last:-0} < 43200 )) && return 0
+    printf '%s' "$now" >"$f" 2>/dev/null
+    printf '\e[2m%s\e[0m\n' "$2" >&2  # dim, to stderr so pipes stay clean
+}
+
+if command -v rg &>/dev/null; then
+    grep() {
+        _search_nudge grep '(tip: `rg` is faster and prettier for interactive search)'
+        command grep --color=auto "$@"
+    }
+else
+    # No rg: skip the wrapper but keep colored grep, so this file stands alone.
+    alias grep='grep --color=auto'
+fi
+if command -v fd &>/dev/null || command -v fdfind &>/dev/null; then
+    find() {
+        _search_nudge find '(tip: `fd` is faster for simple filename searches)'
+        command find "$@"
+    }
+fi
+
 # General shortcuts
 alias clear='\clear && ff'           # Clear screen and run fastfetch
 alias clearf='clear'                 # Legacy alias for clear with fastfetch
