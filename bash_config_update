@@ -27,7 +27,9 @@ bc_check_updates() {
   local original_dir="$PWD"
   cd "$BASH_CONFIG_DIR" || return 1
 
-  if ! timeout 5 git fetch origin main --quiet 2>/dev/null; then
+  # BatchMode=yes prevents SSH credential prompts; ConnectTimeout=2 fails fast when offline
+  if ! GIT_SSH_COMMAND="ssh -o BatchMode=yes -o ConnectTimeout=2" \
+       timeout 5 git fetch origin main --quiet 2>/dev/null; then
     [[ "$check_mode" == "verbose" ]] && bc_log_warn "Failed to fetch updates (network issue or timeout)"
     cd "$original_dir"
     return 1
@@ -71,7 +73,8 @@ bc_update_config() {
   cd "$BASH_CONFIG_DIR" || return 1
 
   bc_log_info "Fetching latest changes..."
-  if ! timeout 15 git fetch origin main --quiet 2>/dev/null; then
+  if ! GIT_SSH_COMMAND="ssh -o BatchMode=yes -o ConnectTimeout=5" \
+       timeout 15 git fetch origin main --quiet 2>/dev/null; then
     bc_log_error "Failed to fetch updates (network issue or timeout)"
     cd "$original_dir"
     return 1

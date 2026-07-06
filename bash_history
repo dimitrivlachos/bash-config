@@ -114,11 +114,15 @@ bc_setup_atuin_config() {
     return 1
   fi
 
-  local config_dir="$BASH_CONFIG_DIR/configs/atuin"
+  # ATUIN_CONFIG_DIR is set per-host in bash_exports (atuin_homelab) and
+  # overridden per-specialisation (e.g. atuin_diamond in bashrc_diamond).
+  # Honour it so the right host config is verified; fall back to the base dir.
+  local config_dir="${ATUIN_CONFIG_DIR:-$BASH_CONFIG_DIR/configs/atuin}"
   local config_file="$config_dir/config.toml"
 
   if [[ ! -f "$config_file" ]]; then
     bc_log_error "Atuin config not found in repo: $config_file"
+    bc_log_info "ATUIN_CONFIG_DIR=${ATUIN_CONFIG_DIR:-(unset)} — check bash_exports / specialisation"
     return 1
   fi
 

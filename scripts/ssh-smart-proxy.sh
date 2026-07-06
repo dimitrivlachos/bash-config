@@ -35,11 +35,9 @@ FALLBACK_MODE="${6:-tunnel}"
 # Write to /dev/tty directly — ssh's ProxyCommand has its stdout/stdin wired
 # to the transport, and stderr may be suppressed in non-debug mode.
 # /dev/tty always reaches the user's terminal.
-if [[ -w /dev/tty ]]; then
-    exec 3>/dev/tty
-else
-    exec 3>&2
-fi
+# Fall back to stderr, then /dev/null (for non-interactive contexts like VSCode
+# Remote SSH where /dev/tty exists but cannot be opened).
+exec 3>/dev/tty 2>/dev/null || exec 3>&2 2>/dev/null || exec 3>/dev/null
 
 status() { printf '\033[0;90m  ↪ %s\033[0m\n' "$1" >&3; }
 debug()  { [[ "${BASH_CONFIG_DEBUG:-}" == "true" ]] && printf '\033[0;37m🔍 [PROXY:%s] %s\033[0m\n' "$DIRECT_HOST" "$1" >&3; }

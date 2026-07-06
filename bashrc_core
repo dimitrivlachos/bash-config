@@ -126,11 +126,7 @@ if [[ $- == *i* ]]; then
     current_date=$(date +%Y%m%d)
     
     if [[ ! -f "$update_check_file" ]] || [[ "$(cat "$update_check_file" 2>/dev/null)" != "$current_date" ]]; then
-      bc_check_updates silent
-      check_result=$?
-      if [[ $check_result -eq 2 ]]; then
-        bc_check_updates notify
-      fi
+      bc_check_updates notify
       echo "$current_date" > "$update_check_file"
     fi
   fi
