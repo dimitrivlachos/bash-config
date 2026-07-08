@@ -142,6 +142,7 @@ _bc_run_setup_steps() {
   if [[ "$SPECIALISATION" == "frostpaw" ]]; then
   echo "  [5] Set up certificates       (install Caddy root CA)"
   echo "  [6] Set up atuin              (verify config + connectivity)"
+  echo "  [7] Set up atuin daemon       (systemd unit + health-check timer)"
   fi
   echo "  [0] Skip — I will set up manually later"
   echo ""
@@ -207,6 +208,12 @@ _bc_run_setup_steps() {
         echo ""
         echo "[INFO] Verifying atuin connectivity..."
         bc_verify_atuin || true
+        did_anything=true
+        ;;
+      7)
+        echo ""
+        echo "[INFO] Installing atuin daemon systemd units..."
+        bc_setup_atuin_daemon || true
         did_anything=true
         ;;
       0)

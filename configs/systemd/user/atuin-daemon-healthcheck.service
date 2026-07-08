@@ -1,0 +1,10 @@
+[Unit]
+Description=Restart atuin daemon if it stops responding
+# Managed by bash-config — installed via bc_setup_atuin_daemon (bash_history).
+# Restart=always only catches a daemon that EXITS. The observed failure was a
+# daemon that stayed alive but stopped answering its socket, so we actively
+# probe it and restart on no response. Driven by atuin-daemon-healthcheck.timer.
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'timeout 5 %h/.atuin/bin/atuin daemon status >/dev/null 2>&1 || systemctl --user restart atuin-daemon.service'

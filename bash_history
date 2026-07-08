@@ -142,6 +142,69 @@ bc_setup_atuin_config() {
   fi
 }
 
+# Install/refresh the systemd --user units that own the atuin daemon lifecycle.
+# The daemon binds a socket path derived from XDG_RUNTIME_DIR at start time, so
+# letting atuin's own `autostart` spawn it from arbitrary shell-hook environments
+# produced inconsistent socket paths and multi-second per-command hangs when a
+# shell connected to a stale socket. systemd gives one consistent environment
+# plus auto-restart, and a health-check timer catches an alive-but-wedged daemon.
+# Requires `[daemon] autostart = false` in the atuin config (set in the repo).
+# Idempotent — safe to re-run.  Frostpaw only.
+bc_setup_atuin_daemon() {
+  if [[ "${BASH_SPECIALISATION:-}" != "frostpaw" ]]; then
+    bc_log_warn "bc_setup_atuin_daemon is only supported on frostpaw systems"
+    return 1
+  fi
+
+  local src_dir="${BASH_CONFIG_DIR:-}/configs/systemd/user"
+  local dest_dir="$HOME/.config/systemd/user"
+  local units=(atuin-daemon.service atuin-daemon-healthcheck.service atuin-daemon-healthcheck.timer)
+
+  if [[ ! -d "$src_dir" ]]; then
+    bc_log_error "systemd unit source dir not found: $src_dir"
+    return 1
+  fi
+  if ! command -v systemctl >/dev/null 2>&1; then
+    bc_log_error "systemctl not found — this host does not use systemd"
+    return 1
+  fi
+  if [[ ! -x "$HOME/.atuin/bin/atuin" ]]; then
+    bc_log_warn "atuin binary not at ~/.atuin/bin/atuin — units reference that path"
+    bc_log_info "Adjust ExecStart in $src_dir if atuin is installed elsewhere"
+  fi
+
+  # Symlink the repo-managed units into the user unit dir so edits track the repo.
+  mkdir -p "$dest_dir"
+  local u
+  for u in "${units[@]}"; do
+    ln -sf "$src_dir/$u" "$dest_dir/$u"
+    bc_log_debug "Linked $u -> $src_dir/$u"
+  done
+
+  # Keep the user manager (and /run/user/<uid>) alive across logout so the daemon
+  # stays up over long uptimes rather than dying with the last session.
+  if [[ "$(loginctl show-user "$USER" -p Linger --value 2>/dev/null)" != "yes" ]]; then
+    if loginctl enable-linger "$USER" 2>/dev/null; then
+      bc_log_success "Enabled linger for $USER"
+    else
+      bc_log_warn "Could not enable linger — run: sudo loginctl enable-linger $USER"
+    fi
+  fi
+
+  systemctl --user daemon-reload
+  systemctl --user enable --now atuin-daemon.service >/dev/null 2>&1
+  systemctl --user enable --now atuin-daemon-healthcheck.timer >/dev/null 2>&1
+
+  if [[ "$(systemctl --user is-active atuin-daemon.service 2>/dev/null)" == "active" ]]; then
+    bc_log_success "atuin-daemon.service active (socket: ${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/atuin.sock)"
+    bc_log_info "Health check every 3 min via atuin-daemon-healthcheck.timer"
+  else
+    bc_log_error "atuin-daemon.service failed to start"
+    bc_log_info "Inspect: systemctl --user status atuin-daemon.service"
+    return 1
+  fi
+}
+
 # Check whether bash-preexec is installed and loaded.
 # Without it, atuin's precmd/preexec hooks are never called and history is not recorded.
 bc_check_bash_preexec() {
