@@ -10,8 +10,8 @@
 # openai-api-key and openai-api-base are intentionally omitted — set via env vars
 
 # Default model — prefix with "openai/" to route through the OpenAI-compatible endpoint
-# Verify the exact model ID against: GET /v1/models
-model: openai/Qwen3 Coder Next
+model: openai/qwen3-coder-next
+model-metadata-file: ~/.aider.model.metadata.json
 
 # Sensible defaults
 stream: true
