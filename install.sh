@@ -139,10 +139,11 @@ _bc_run_setup_steps() {
   echo "  [2] Set up SSH configuration  (link config + SK key handles)"
   echo "  [3] Validate installation     (bc_validate_config)"
   echo "  [4] Set up tmux               (symlink ~/.config/tmux)"
+  echo "  [5] Set up aider              (symlink ~/.aider.conf.yml)"
   if [[ "$SPECIALISATION" == "frostpaw" ]]; then
-  echo "  [5] Set up certificates       (install Caddy root CA)"
-  echo "  [6] Set up atuin              (verify config + connectivity)"
-  echo "  [7] Set up atuin daemon       (systemd unit + health-check timer)"
+  echo "  [6] Set up certificates       (install Caddy root CA)"
+  echo "  [7] Set up atuin              (verify config + connectivity)"
+  echo "  [8] Set up atuin daemon       (systemd unit + health-check timer)"
   fi
   echo "  [0] Skip — I will set up manually later"
   echo ""
@@ -196,12 +197,24 @@ _bc_run_setup_steps() {
         ;;
       5)
         echo ""
+        echo "[INFO] Symlinking ~/.aider.conf.yml -> $CONFIG_REPO/configs/aider.conf.yml"
+        if [[ -e "$HOME/.aider.conf.yml" && ! -L "$HOME/.aider.conf.yml" ]]; then
+          echo "[WARN] $HOME/.aider.conf.yml exists and is not a symlink — skipping to avoid data loss"
+          echo "       Back it up manually, then re-run this step."
+        else
+          ln -sf "$CONFIG_REPO/configs/aider.conf.yml" "$HOME/.aider.conf.yml"
+          echo "[INFO] Done — remember to set OPENAI_API_KEY in secrets/bash_secrets.sh"
+          did_anything=true
+        fi
+        ;;
+      6)
+        echo ""
         echo "[INFO] Installing CA certificates..."
         if bc_setup_certs; then
           did_anything=true
         fi
         ;;
-      6)
+      7)
         echo ""
         echo "[INFO] Setting up atuin config..."
         bc_setup_atuin_config || true
@@ -210,7 +223,7 @@ _bc_run_setup_steps() {
         bc_verify_atuin || true
         did_anything=true
         ;;
-      7)
+      8)
         echo ""
         echo "[INFO] Installing atuin daemon systemd units..."
         bc_setup_atuin_daemon || true

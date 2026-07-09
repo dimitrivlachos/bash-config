@@ -1,0 +1,19 @@
+##########################################################
+# aider configuration
+# Symlinked to ~/.aider.conf.yml by the bash-config installer
+##########################################################
+
+# OpenAI-compatible local inference server
+# API base URL and key are set by the conditional in secrets/bash_secrets.sh:
+#   aarch64 (spark)  -> OPENAI_API_BASE=http://127.0.0.1:8000/v1
+#   other machines   -> OPENAI_API_BASE=https://llm.spark.bluefox.cafe/v1
+# openai-api-key and openai-api-base are intentionally omitted — set via env vars
+
+# Default model — prefix with "openai/" to route through the OpenAI-compatible endpoint
+# Verify the exact model ID against: GET /v1/models
+model: openai/Qwen3 Coder Next
+
+# Sensible defaults
+stream: true
+pretty: true
+git: true
