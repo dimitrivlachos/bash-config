@@ -7,4 +7,6 @@ Description=Restart atuin daemon if it stops responding
 
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -c 'timeout 5 %h/.atuin/bin/atuin daemon status >/dev/null 2>&1 || systemctl --user restart atuin-daemon.service'
+# reset-failed first so a daemon that tripped the service's StartLimit (and is
+# therefore stuck in 'failed', where a plain restart is refused) can recover.
+ExecStart=/bin/sh -c 'timeout 5 %h/.atuin/bin/atuin daemon status >/dev/null 2>&1 || { systemctl --user reset-failed atuin-daemon.service; systemctl --user restart atuin-daemon.service; }'

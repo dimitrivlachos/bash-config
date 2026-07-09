@@ -6,6 +6,11 @@ Documentation=https://docs.atuin.sh/
 # socket path it binds) is always consistent. autostart=false must be set in the
 # atuin config so the shell hooks do NOT also spawn a competing daemon.
 After=default.target
+# If ExecStart keeps failing (e.g. a stale pidfile lock or a wrong binary path),
+# give up after 5 tries in 60s instead of restarting every 2s forever and
+# flooding the journal. The health-check timer clears this and retries later.
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
