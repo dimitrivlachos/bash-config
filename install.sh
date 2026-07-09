@@ -197,12 +197,20 @@ _bc_run_setup_steps() {
         ;;
       5)
         echo ""
-        echo "[INFO] Symlinking ~/.aider.conf.yml -> $CONFIG_REPO/configs/aider.conf.yml"
-        if [[ -e "$HOME/.aider.conf.yml" && ! -L "$HOME/.aider.conf.yml" ]]; then
-          echo "[WARN] $HOME/.aider.conf.yml exists and is not a symlink — skipping to avoid data loss"
-          echo "       Back it up manually, then re-run this step."
-        else
-          ln -sf "$CONFIG_REPO/configs/aider.conf.yml" "$HOME/.aider.conf.yml"
+        echo "[INFO] Symlinking aider config files..."
+        local _aider_ok=true
+        for _pair in "aider.conf.yml:.aider.conf.yml" "aider.model.metadata.json:.aider.model.metadata.json"; do
+          local _src="${_pair%%:*}" _dst="${_pair##*:}"
+          if [[ -e "$HOME/$_dst" && ! -L "$HOME/$_dst" ]]; then
+            echo "[WARN] $HOME/$_dst exists and is not a symlink — skipping to avoid data loss"
+            echo "       Back it up manually, then re-run this step."
+            _aider_ok=false
+          else
+            ln -sf "$CONFIG_REPO/configs/$_src" "$HOME/$_dst"
+            echo "[INFO] Linked ~/$_dst"
+          fi
+        done
+        if [[ "$_aider_ok" == "true" ]]; then
           echo "[INFO] Done — remember to set OPENAI_API_KEY in secrets/bash_secrets.sh"
           did_anything=true
         fi
