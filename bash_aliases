@@ -56,7 +56,11 @@ unalias grep find 2>/dev/null
 # variable won't work: piped `... | grep` runs the function in a subshell, so
 # the guard wouldn't persist. Builtins only, to avoid recursing into grep/find.
 _search_nudge() {  # $1 = cache key, $2 = message
-    [[ $- == *i* && -z $NO_SEARCH_NUDGE ]] || return 0
+    # Skip during programmable completion: completion scripts call grep/find
+    # internally, and COMP_LINE is only set while a completion function runs.
+    # Without this, tab-completing a command whose completer uses grep splices
+    # the tip into the redrawn line.
+    [[ $- == *i* && -z $NO_SEARCH_NUDGE && -z $COMP_LINE ]] || return 0
     local f="${XDG_CACHE_HOME:-$HOME/.cache}/search-nudge-$1" now last
     printf -v now '%(%s)T' -1
     last=$(<"$f") 2>/dev/null
