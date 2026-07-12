@@ -1,0 +1,12 @@
+[Unit]
+Description=SSH key agent (singleton per machine, fixed socket path)
+
+[Service]
+Type=simple
+# Fixed socket path so every shell attaches to the same agent, which prevents
+# agent pileup by construction (systemd refuses to start a second instance).
+Environment=SSH_AUTH_SOCK=%t/ssh-agent.socket
+ExecStart=/usr/bin/ssh-agent -D -a $SSH_AUTH_SOCK
+
+[Install]
+WantedBy=default.target

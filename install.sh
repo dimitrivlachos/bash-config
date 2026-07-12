@@ -145,6 +145,10 @@ _bc_run_setup_steps() {
   echo "  [7] Set up atuin              (verify config + connectivity)"
   echo "  [8] Set up atuin daemon       (systemd unit + health-check timer)"
   fi
+  if [[ "$SPECIALISATION" != "diamond" ]]; then
+  echo "  [9] Set up ssh-agent service  (systemd unit, one agent per machine)"
+  fi
+  echo "  [10] Generate SSH keys        (per-machine keys + upload instructions)"
   echo "  [0] Skip — I will set up manually later"
   echo ""
 
@@ -235,6 +239,18 @@ _bc_run_setup_steps() {
         echo ""
         echo "[INFO] Installing atuin daemon systemd units..."
         bc_setup_atuin_daemon || true
+        did_anything=true
+        ;;
+      9)
+        echo ""
+        echo "[INFO] Installing ssh-agent systemd unit..."
+        bc_setup_ssh_agent_service || true
+        did_anything=true
+        ;;
+      10)
+        echo ""
+        echo "[INFO] Generating per-machine SSH keys..."
+        bc_setup_ssh_keys || true
         did_anything=true
         ;;
       0)
