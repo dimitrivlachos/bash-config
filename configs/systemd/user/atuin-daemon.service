@@ -1,0 +1,27 @@
+[Unit]
+Description=Atuin history daemon
+Documentation=https://docs.atuin.sh/
+# Managed by bash-config — installed via bc_setup_atuin_daemon (bash_history).
+# Runs the atuin daemon under systemd so its environment (and therefore the unix
+# socket path it binds) is always consistent. autostart=false must be set in the
+# atuin config so the shell hooks do NOT also spawn a competing daemon.
+After=default.target
+# If ExecStart keeps failing (e.g. a stale pidfile lock or a wrong binary path),
+# give up after 5 tries in 60s instead of restarting every 2s forever and
+# flooding the journal. The health-check timer clears this and retries later.
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+# Remove a stale socket left by a crashed daemon before binding a fresh one.
+# %t = XDG_RUNTIME_DIR (/run/user/<uid>) — the same path interactive shells use,
+# so daemon and clients always agree on the socket.
+ExecStartPre=-/usr/bin/rm -f %t/atuin.sock
+# %h = home dir. atuin's curl installer places the binary at ~/.atuin/bin/atuin.
+ExecStart=%h/.atuin/bin/atuin daemon start
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target

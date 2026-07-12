@@ -1,0 +1,11 @@
+[Unit]
+Description=Periodic atuin daemon health check
+# Managed by bash-config — installed via bc_setup_atuin_daemon (bash_history).
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=3min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

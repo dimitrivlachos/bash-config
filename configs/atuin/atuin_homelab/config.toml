@@ -43,6 +43,12 @@ records = true
 
 [daemon]
 # Background process that maintains an in-memory search index and handles sync.
-# autostart spawns it automatically on shell init — no systemd unit needed.
+# Lifecycle is owned by the systemd --user unit atuin-daemon.service (see
+# ~/.config/systemd/user/), NOT by autostart: autostart spawned the daemon from
+# whatever environment the shell hook happened to run in, so it bound an
+# inconsistent socket path (/run/user/$UID/atuin.sock when XDG_RUNTIME_DIR was
+# set, ~/.local/share/atuin/atuin.sock when it wasn't). Shells then connected to
+# a stale socket left by a dead daemon and hung ~4s per command. systemd gives
+# one consistent environment (XDG_RUNTIME_DIR=/run/user/$UID) plus auto-restart.
 enabled = true
-autostart = true
+autostart = false
