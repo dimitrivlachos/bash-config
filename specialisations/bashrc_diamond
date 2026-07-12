@@ -6,7 +6,7 @@
 # Provides:
 #   - Module loading (CUDA, CMake)
 #   - Pixi package manager (tools on science volume)
-#   - SSH agent setup for interactive shells
+#   - SSH config hint (agent handled by bash_ssh module)
 #   - Hostname mapping for GPU nodes
 #   - VSCode symlink validation
 #   - Fastfetch configuration
@@ -44,12 +44,12 @@ module load cmake/"$CMAKE_VERSION"
 # DIAMOND_USERNAME from bash_secrets.sh — no action needed here.
 
 # ------------------------------------------------------------------------------
-# SSH Setup (interactive shells only)
+# SSH Setup
 # ------------------------------------------------------------------------------
-# SSH agent — start an empty agent for connection multiplexing (do not preload keys)
-if [[ $- == *i* ]]; then
-  bc_setup_ssh_agent
-fi
+# Agent attachment is handled by bash_ssh at module load (bc_ssh_agent_attach):
+# a forwarded agent is reused if present, otherwise a per-host env-file agent
+# (no systemd --user here; per-host because the NFS home is shared across
+# bastion/workstation nodes). Keys cache into it on first use (AddKeysToAgent).
 
 # Inform user if SSH config not set up
 if ! bc_check_ssh_config silent >/dev/null 2>&1; then
