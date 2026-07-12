@@ -41,5 +41,8 @@ bc_log_success() {
 }
 
 bc_log_debug() {
+  # Explicit return so this is safe as the last call in a function under
+  # set -e; the && guard alone leaks status 1 when debug is off
   [[ "${BASH_CONFIG_DEBUG:-}" == "true" ]] && echo -e "${BC_COLOR_GRAY}🔍 [DEBUG]${BC_COLOR_RESET} $*" >&2
+  return 0
 }
